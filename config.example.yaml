@@ -1,0 +1,26 @@
+server:
+  listen: "127.0.0.1:9876"
+
+providers:
+  codex:
+    enabled: true
+    auth_method: browser
+    issuer: "https://auth.openai.com"
+    proactive_refresh_age: 192h
+    refresh_buffer: 5m
+
+  gemini:
+    enabled: false
+    auth_method: browser
+
+  kilocode:
+    enabled: false
+    auth_method: device_code
+
+refresh:
+  check_interval: 1m
+  max_retries: 3
+  retry_backoff: 30s
+
+log:
+  level: info
