@@ -19,13 +19,13 @@ import (
 
 // Server is the HTTP API server.
 type Server struct {
-	manager   *manager.TokenManager
-	db        *db.DB
-	logger    *slog.Logger
-	mux       *http.ServeMux
-	sessions  map[string]time.Time
-	oauth     *OAuthProxy
-	mu        sync.Mutex
+	manager  *manager.TokenManager
+	db       *db.DB
+	logger   *slog.Logger
+	mux      *http.ServeMux
+	sessions map[string]time.Time
+	oauth    *OAuthProxy
+	mu       sync.Mutex
 }
 
 // New creates a new HTTP server.
@@ -36,9 +36,13 @@ func New(m *manager.TokenManager, database *db.DB, logger *slog.Logger) *Server 
 		logger:   logger,
 		mux:      http.NewServeMux(),
 		sessions: make(map[string]time.Time),
-		oauth:    NewOAuthProxy(m, logger),
+		oauth:    NewOAuthProxy(m, database, logger),
 	}
 	s.routes()
+
+	// Start session cleanup
+	go s.cleanupSessions()
+
 	return s
 }
 
@@ -60,13 +64,39 @@ func (s *Server) routes() {
 	// OAuth proxy routes
 	s.oauth.RegisterRoutes(s.mux)
 
-	// Web UI
-	s.mux.Handle("/", http.FileServer(http.FS(webUIFS)))
+	// Web UI with server context injection for auth
+	s.mux.Handle("/", s.injectServerContext(http.FileServer(http.FS(webUIFS))))
 }
 
 // Handler returns the HTTP handler.
 func (s *Server) Handler() http.Handler {
 	return s.mux
+}
+
+// injectServerContext adds the server reference to the request context
+// so that OAuthProxy.requireAuth can validate sessions.
+func (s *Server) injectServerContext(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), serverContextKey("server"), s)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// --- Session cleanup ---
+
+func (s *Server) cleanupSessions() {
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		s.mu.Lock()
+		now := time.Now()
+		for token, expiry := range s.sessions {
+			if now.After(expiry) {
+				delete(s.sessions, token)
+			}
+		}
+		s.mu.Unlock()
+	}
 }
 
 // --- Auth middleware ---
@@ -118,16 +148,18 @@ func (s *Server) validSession(token string) bool {
 	return true
 }
 
-func (s *Server) createSession() string {
+func (s *Server) createSession() (string, error) {
 	b := make([]byte, 32)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
 	token := hex.EncodeToString(b)
 
 	s.mu.Lock()
 	s.sessions[token] = time.Now().Add(24 * time.Hour)
 	s.mu.Unlock()
 
-	return token
+	return token, nil
 }
 
 func (s *Server) removeSession(token string) {
@@ -176,12 +208,19 @@ func (s *Server) handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token := s.createSession()
+	token, err := s.createSession()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	isHTTPS := r.Header.Get("X-Forwarded-Proto") == "https" || r.TLS != nil
 	http.SetCookie(w, &http.Cookie{
 		Name:     "session",
 		Value:    token,
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   isHTTPS,
 		SameSite: http.SameSiteStrictMode,
 		MaxAge:   86400,
 	})
@@ -192,18 +231,25 @@ func (s *Server) handleAdminLogout(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie("session"); err == nil {
 		s.removeSession(c.Value)
 	}
+	isHTTPS := r.Header.Get("X-Forwarded-Proto") == "https" || r.TLS != nil
 	http.SetCookie(w, &http.Cookie{
 		Name:     "session",
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   isHTTPS,
+		SameSite: http.SameSiteStrictMode,
 		MaxAge:   -1,
 	})
 	writeJSON(w, http.StatusOK, map[string]string{"status": "logged_out"})
 }
 
 func (s *Server) handleAuthStatus(w http.ResponseWriter, _ *http.Request) {
-	hasAdmin, _ := s.db.HasAdmin()
+	hasAdmin, err := s.db.HasAdmin()
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]bool{"has_admin": false})
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]bool{"has_admin": hasAdmin})
 }
 
@@ -221,11 +267,12 @@ func (s *Server) handleGetToken(w http.ResponseWriter, r *http.Request) {
 
 	tokens, err := s.manager.GetToken(r.Context(), name)
 	if err != nil {
-		status := http.StatusNotFound
-		if err.Error() != "" {
-			status = http.StatusUnauthorized
+		// Distinguish "no auth" (404) from "auth failed" (401)
+		if strings.Contains(err.Error(), "no auth") || strings.Contains(err.Error(), "no tokens") {
+			writeError(w, http.StatusNotFound, err.Error())
+		} else {
+			writeError(w, http.StatusUnauthorized, err.Error())
 		}
-		writeError(w, status, err.Error())
 		return
 	}
 

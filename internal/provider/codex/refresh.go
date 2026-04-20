@@ -13,21 +13,24 @@ import (
 
 // RefreshError represents a classified token refresh error.
 type RefreshError struct {
-	Permanent  bool
-	Reason     string // "expired", "reused", "revoked", "other", "transient"
-	StatusCode int
-	Message    string
+	IsPermanent bool
+	Reason      string // "expired", "reused", "revoked", "other", "transient"
+	StatusCode  int
+	Message     string
 }
 
 func (e *RefreshError) Error() string {
 	return fmt.Sprintf("refresh error (%s): %s", e.Reason, e.Message)
 }
 
+// Permanent satisfies the permanentError interface in the manager package.
+func (e *RefreshError) Permanent() bool { return e.IsPermanent }
+
 // Refresh attempts to refresh the access token using the refresh token.
 func (p *Provider) Refresh(ctx context.Context, tokens *provider.TokenSet) (*provider.TokenSet, error) {
 	if tokens.RefreshToken == "" {
 		return nil, &RefreshError{
-			Permanent: true,
+			IsPermanent: true,
 			Reason:    "expired",
 			Message:   "no refresh token available",
 		}
@@ -46,10 +49,10 @@ func (p *Provider) Refresh(ctx context.Context, tokens *provider.TokenSet) (*pro
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := p.client.Do(req)
 	if err != nil {
 		return nil, &RefreshError{
-			Permanent:  false,
+			IsPermanent:  false,
 			Reason:     "transient",
 			Message:    err.Error(),
 			StatusCode: 0,
@@ -64,9 +67,13 @@ func (p *Provider) Refresh(ctx context.Context, tokens *provider.TokenSet) (*pro
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		reason := "transient"
+		if resp.StatusCode >= 400 && resp.StatusCode < 500 {
+			reason = "other"
+		}
 		return nil, &RefreshError{
-			Permanent:  resp.StatusCode >= 400 && resp.StatusCode < 500,
-			Reason:     "transient",
+			IsPermanent:  resp.StatusCode >= 400 && resp.StatusCode < 500,
+			Reason:     reason,
 			Message:    fmt.Sprintf("unexpected status %d: %s", resp.StatusCode, body),
 			StatusCode: resp.StatusCode,
 		}
@@ -134,20 +141,20 @@ func classifyRefreshError(body []byte) *RefreshError {
 
 	switch resp.Error.Code {
 	case "refresh_token_expired":
-		return &RefreshError{Permanent: true, Reason: "expired", Message: resp.Error.Code}
+		return &RefreshError{IsPermanent: true, Reason: "expired", Message: resp.Error.Code}
 	case "refresh_token_reused":
-		return &RefreshError{Permanent: true, Reason: "reused", Message: resp.Error.Code}
+		return &RefreshError{IsPermanent: true, Reason: "reused", Message: resp.Error.Code}
 	case "refresh_token_invalidated":
-		return &RefreshError{Permanent: true, Reason: "revoked", Message: resp.Error.Code}
+		return &RefreshError{IsPermanent: true, Reason: "revoked", Message: resp.Error.Code}
 	default:
-		return &RefreshError{Permanent: true, Reason: "other", Message: string(body)}
+		return &RefreshError{IsPermanent: true, Reason: "other", Message: string(body)}
 	}
 }
 
 // IsPermanentRefreshError checks if an error is a permanent refresh failure.
 func IsPermanentRefreshError(err error) bool {
 	if re, ok := err.(*RefreshError); ok {
-		return re.Permanent
+		return re.IsPermanent
 	}
 	return false
 }

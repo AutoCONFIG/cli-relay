@@ -38,7 +38,7 @@ func (p *Provider) LoginDeviceCode(ctx context.Context) (*provider.TokenSet, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := p.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request usercode: %w", err)
 	}
@@ -106,7 +106,7 @@ func (p *Provider) pollDeviceToken(ctx context.Context, deviceAuthID, userCode s
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := p.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +148,7 @@ func (p *Provider) exchangeCodeForTokensRaw(ctx context.Context, code, redirectU
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := p.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("token exchange request: %w", err)
 	}
@@ -202,7 +202,7 @@ func (p *Provider) obtainAPIKey(ctx context.Context, idToken string) (string, er
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := p.client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("token-exchange request: %w", err)
 	}

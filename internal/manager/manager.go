@@ -52,6 +52,7 @@ type TokenManager struct {
 	statuses     map[string]ProviderInfo
 	permFailures map[string]error // permanent refresh failures, cached
 
+	onChangeMu    sync.RWMutex
 	onTokenChange []func(providerName string, tokens *provider.TokenSet)
 }
 
@@ -91,7 +92,10 @@ func (m *TokenManager) GetToken(ctx context.Context, providerName string) (*prov
 	}
 
 	// Check for permanent failure
-	if err, failed := m.permFailures[providerName]; failed {
+	m.mu.RLock()
+	err, failed := m.permFailures[providerName]
+	m.mu.RUnlock()
+	if failed {
 		return nil, fmt.Errorf("provider %s has permanent auth failure: %w", providerName, err)
 	}
 
@@ -120,7 +124,9 @@ func (m *TokenManager) GetToken(ctx context.Context, providerName string) (*prov
 		newTokens, err := p.Refresh(ctx, tokens)
 		if err != nil {
 			if isPermanent(err) {
+				m.mu.Lock()
 				m.permFailures[providerName] = err
+				m.mu.Unlock()
 				m.updateStatus(providerName, StatusRefreshFailed, err.Error())
 			}
 			// Return stale tokens if still valid
@@ -236,7 +242,9 @@ func (m *TokenManager) RefreshForce(ctx context.Context, providerName string) (*
 	newTokens, err := p.Refresh(ctx, tokens)
 	if err != nil {
 		if isPermanent(err) {
+			m.mu.Lock()
 			m.permFailures[providerName] = err
+			m.mu.Unlock()
 			m.updateStatus(providerName, StatusRefreshFailed, err.Error())
 		}
 		return nil, err
@@ -285,11 +293,18 @@ func (m *TokenManager) Recover(ctx context.Context, providerName string) error {
 
 // OnTokenChange registers a callback invoked whenever tokens are refreshed.
 func (m *TokenManager) OnTokenChange(fn func(providerName string, tokens *provider.TokenSet)) {
+	m.onChangeMu.Lock()
 	m.onTokenChange = append(m.onTokenChange, fn)
+	m.onChangeMu.Unlock()
 }
 
 func (m *TokenManager) notifyTokenChange(providerName string, tokens *provider.TokenSet) {
-	for _, fn := range m.onTokenChange {
+	m.onChangeMu.RLock()
+	callbacks := make([]func(providerName string, tokens *provider.TokenSet), len(m.onTokenChange))
+	copy(callbacks, m.onTokenChange)
+	m.onChangeMu.RUnlock()
+
+	for _, fn := range callbacks {
 		fn(providerName, tokens)
 	}
 }
@@ -320,7 +335,6 @@ func (m *TokenManager) proactiveRefreshAge(providerName string) time.Duration {
 }
 
 func isPermanent(err error) bool {
-	// Check for permanent refresh errors from provider implementations
 	type permanentError interface {
 		Permanent() bool
 	}

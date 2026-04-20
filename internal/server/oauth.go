@@ -22,27 +22,33 @@ import (
 // and have their callbacks proxied through the server.
 type OAuthProxy struct {
 	manager *manager.TokenManager
+	db      hasAdminChecker
 	logger  *slog.Logger
 
 	mu      sync.Mutex
 	pending map[string]*oauthSession
+
+	cleanupOnce sync.Once
+}
+
+type hasAdminChecker interface {
+	HasAdmin() (bool, error)
 }
 
 type oauthSession struct {
-	ProviderName  string
-	State         string
-	CodeVerifier  string
-	RedirectURL   string
-	AuthURL       string
-	CreatedAt     time.Time
-	CallbackPort  int
-	Method        provider.AuthMethod
+	ProviderName string
+	State        string
+	CodeVerifier string
+	RedirectURL  string
+	CreatedAt    time.Time
+	Method       provider.AuthMethod
 }
 
 // NewOAuthProxy creates a new OAuth proxy handler.
-func NewOAuthProxy(m *manager.TokenManager, logger *slog.Logger) *OAuthProxy {
+func NewOAuthProxy(m *manager.TokenManager, db hasAdminChecker, logger *slog.Logger) *OAuthProxy {
 	return &OAuthProxy{
 		manager: m,
+		db:      db,
 		logger:  logger,
 		pending: make(map[string]*oauthSession),
 	}
@@ -54,9 +60,43 @@ func (p *OAuthProxy) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/oauth/callback", p.handleCallback)
 }
 
+// requireAuth checks admin authentication — reuses the same logic as Server.requireAuth.
 func (p *OAuthProxy) requireAuth(next http.HandlerFunc) http.HandlerFunc {
-	// Reuse the parent server's auth check
-	return next
+	return func(w http.ResponseWriter, r *http.Request) {
+		hasAdmin, err := p.db.HasAdmin()
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "internal error")
+			return
+		}
+		if !hasAdmin {
+			// No admin set yet, allow access for first-time setup
+			next(w, r)
+			return
+		}
+
+		token := ""
+		if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
+			token = strings.TrimPrefix(auth, "Bearer ")
+		} else {
+			if c, err := r.Cookie("session"); err == nil {
+				token = c.Value
+			}
+		}
+
+		// Validate session via the parent server's session store.
+		// We need access to the server's validSession method.
+		if srv, ok := r.Context().Value(serverContextKey("server")).(*Server); ok {
+			if token == "" || !srv.validSession(token) {
+				writeError(w, http.StatusUnauthorized, "unauthorized")
+				return
+			}
+		} else if token == "" {
+			writeError(w, http.StatusUnauthorized, "unauthorized")
+			return
+		}
+
+		next(w, r)
+	}
 }
 
 // handleInit starts an OAuth flow for a provider and returns the auth URL
@@ -83,12 +123,18 @@ func (p *OAuthProxy) handleInit(w http.ResponseWriter, r *http.Request) {
 
 	// Generate state for CSRF protection
 	stateBytes := make([]byte, 32)
-	rand.Read(stateBytes)
+	if _, err := rand.Read(stateBytes); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to generate state")
+		return
+	}
 	state := hex.EncodeToString(stateBytes)
 
 	// Generate PKCE verifier
 	verifierBytes := make([]byte, 64)
-	rand.Read(verifierBytes)
+	if _, err := rand.Read(verifierBytes); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to generate verifier")
+		return
+	}
 	codeVerifier := hex.EncodeToString(verifierBytes)
 
 	// Build the callback URL that points back to this server
@@ -96,7 +142,14 @@ func (p *OAuthProxy) handleInit(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("X-Forwarded-Proto") == "https" {
 		scheme = "https"
 	}
+
+	// Validate Host header: only allow alphanumeric + dots + hyphens + port
 	host := r.Host
+	if !isSafeHost(host) {
+		writeError(w, http.StatusBadRequest, "invalid host header")
+		return
+	}
+
 	callbackURL := fmt.Sprintf("%s://%s/api/v1/oauth/callback", scheme, host)
 
 	// Store the session
@@ -113,25 +166,21 @@ func (p *OAuthProxy) handleInit(w http.ResponseWriter, r *http.Request) {
 	p.pending[state] = session
 	p.mu.Unlock()
 
-	// Clean up old sessions in background
-	go p.cleanup()
+	// Start periodic cleanup if not already running
+	p.cleanupOnce.Do(func() {
+		go p.periodicCleanup()
+	})
 
-	// Build the provider-specific auth URL
-	// The actual URL construction is provider-specific, so we return
-	// a generic response with the state. The provider's Login method
-	// should be called with the proxied callback URL.
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"state":         state,
-		"callback_url":  callbackURL,
-		"code_verifier": codeVerifier,
-		"provider":      req.Provider,
-		"method":        string(method),
-		"expires_in":    300,
+		"state":        state,
+		"callback_url": callbackURL,
+		"provider":     req.Provider,
+		"method":       string(method),
+		"expires_in":   300,
 	})
 }
 
 // handleCallback receives the OAuth callback from the browser.
-// The provider redirects the user here after authentication.
 func (p *OAuthProxy) handleCallback(w http.ResponseWriter, r *http.Request) {
 	state := r.URL.Query().Get("state")
 	code := r.URL.Query().Get("code")
@@ -165,8 +214,6 @@ func (p *OAuthProxy) handleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Exchange the authorization code for tokens using the provider
-	// The manager's Login flow is customized via the callback context
 	ctx := context.WithValue(r.Context(), oauthContextKey("callback"), &oauthCallback{
 		Code:         code,
 		State:        state,
@@ -189,19 +236,38 @@ func (p *OAuthProxy) handleCallback(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, `<html><body><h2>Authentication Successful</h2><p>You can close this window and return to CLI Relay.</p><script>window.close()</script></body></html>`)
 }
 
-func (p *OAuthProxy) cleanup() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+func (p *OAuthProxy) periodicCleanup() {
+	ticker := time.NewTicker(2 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		p.mu.Lock()
+		for state, session := range p.pending {
+			if time.Since(session.CreatedAt) > 5*time.Minute {
+				delete(p.pending, state)
+			}
+		}
+		p.mu.Unlock()
+	}
+}
 
-	for state, session := range p.pending {
-		if time.Since(session.CreatedAt) > 5*time.Minute {
-			delete(p.pending, state)
+// isSafeHost validates that a Host header value is safe to use in a URL.
+// Prevents host header injection attacks.
+func isSafeHost(host string) bool {
+	// Basic validation: host should contain only alphanumeric, dots, hyphens, colons (port)
+	for _, c := range host {
+		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+			c == '.' || c == '-' || c == ':' || c == '[' || c == ']') {
+			return false
 		}
 	}
+	return host != ""
 }
 
 // oauthContextKey is used to pass callback data through context.
 type oauthContextKey string
+
+// serverContextKey is used to pass server reference through context.
+type serverContextKey string
 
 // OAuthCallbackFromContext extracts OAuth callback data from a context.
 func OAuthCallbackFromContext(ctx context.Context) *oauthCallback {

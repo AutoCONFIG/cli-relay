@@ -109,5 +109,27 @@ func (c *Config) Validate() error {
 	if c.Server.Listen == "" {
 		return fmt.Errorf("server.listen is required")
 	}
+	if c.Database.Path == "" {
+		return fmt.Errorf("database.path is required")
+	}
+	if c.Refresh.CheckInterval <= 0 {
+		return fmt.Errorf("refresh.check_interval must be positive")
+	}
+	if c.Refresh.MaxRetries < 0 {
+		return fmt.Errorf("refresh.max_retries must be non-negative")
+	}
+	if c.Refresh.RetryBackoff < 0 {
+		return fmt.Errorf("refresh.retry_backoff must be non-negative")
+	}
+	for name, pcfg := range c.Providers {
+		if pcfg.Enabled && pcfg.AuthMethod != "" {
+			switch pcfg.AuthMethod {
+			case "browser", "device_code", "api_key":
+				// valid
+			default:
+				return fmt.Errorf("providers.%s.auth_method: invalid value %q (must be browser, device_code, or api_key)", name, pcfg.AuthMethod)
+			}
+		}
+	}
 	return nil
 }

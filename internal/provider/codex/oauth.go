@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"os/exec"
@@ -76,8 +77,14 @@ func (p *Provider) LoginBrowser(ctx context.Context) (*provider.TokenSet, error)
 	})
 
 	server := &http.Server{Addr: fmt.Sprintf("127.0.0.1:%d", DefaultCallbackPort), Handler: mux}
-	go server.ListenAndServe()
-	defer server.Close()
+
+	// Use net.Listen first to catch port-in-use errors early
+	ln, err := net.Listen("tcp", server.Addr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start callback server on %s: %w", server.Addr, err)
+	}
+	go server.Serve(ln)
+	defer server.Shutdown(ctx)
 
 	redirectURI := fmt.Sprintf("http://localhost:%d%s", DefaultCallbackPort, callbackPath)
 
@@ -150,5 +157,11 @@ func openBrowser(url string) error {
 	default:
 		cmd = "xdg-open"
 	}
-	return exec.Command(cmd, append(args, url)...).Start()
+	c := exec.Command(cmd, append(args, url)...)
+	if err := c.Start(); err != nil {
+		return err
+	}
+	// Reap zombie process
+	go c.Wait()
+	return nil
 }

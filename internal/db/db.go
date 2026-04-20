@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sync"
 	"time"
 
 	"github.com/AutoCONFIG/cli-relay/internal/provider"
@@ -18,7 +17,6 @@ import (
 // DB wraps an SQLite database for cli-relay persistence.
 type DB struct {
 	db *sql.DB
-	mu sync.Mutex
 }
 
 // Open creates or opens a SQLite database at the given path.
@@ -27,16 +25,15 @@ func Open(path string) (*DB, error) {
 		return nil, fmt.Errorf("create db dir: %w", err)
 	}
 
-	db, err := sql.Open("sqlite", path)
+	// Add busy_timeout for concurrent access resilience
+	dsn := fmt.Sprintf("file:%s?_busy_timeout=5000&_journal_mode=WAL", path)
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
 
-	// Enable WAL mode for better concurrent read performance
-	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("set WAL mode: %w", err)
-	}
+	// Set connection pool limits for SQLite
+	db.SetMaxOpenConns(1)
 
 	d := &DB{db: db}
 	if err := d.migrate(); err != nil {
@@ -77,9 +74,6 @@ func (d *DB) migrate() error {
 
 // Load reads the stored tokens for a provider.
 func (d *DB) Load(_ context.Context, providerName string) (*provider.TokenSet, error) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
 	var data string
 	err := d.db.QueryRow("SELECT data FROM tokens WHERE provider = ?", providerName).Scan(&data)
 	if err == sql.ErrNoRows {
@@ -98,9 +92,6 @@ func (d *DB) Load(_ context.Context, providerName string) (*provider.TokenSet, e
 
 // Save persists tokens for a provider.
 func (d *DB) Save(_ context.Context, providerName string, tokens *provider.TokenSet) error {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
 	data, err := json.Marshal(tokens)
 	if err != nil {
 		return fmt.Errorf("marshal tokens: %w", err)
@@ -115,9 +106,6 @@ func (d *DB) Save(_ context.Context, providerName string, tokens *provider.Token
 
 // Delete removes stored tokens for a provider.
 func (d *DB) Delete(_ context.Context, providerName string) error {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
 	_, err := d.db.Exec("DELETE FROM tokens WHERE provider = ?", providerName)
 	return err
 }

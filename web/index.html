@@ -3,7 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'">
 <title>CLI Relay</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -59,18 +58,6 @@ h2{font-size:1.1rem;margin:20px 0 10px;color:#ccc}
 
 <script>
 let sessionToken = '';
-
-// HTML-escape to prevent XSS
-function esc(s) {
-  const d = document.createElement('div');
-  d.textContent = s;
-  return d.innerHTML;
-}
-
-// JS-string-escape for onclick attributes
-function js(s) {
-  return s.replace(/[\\'"]/g, '\\$&').replace(/[\r\n]/g, ' ');
-}
 
 async function api(path, opts = {}) {
   const headers = opts.headers || {};
@@ -138,35 +125,31 @@ function statusClass(s) {
 }
 
 function providerCard(p) {
-  const name = esc(p.name);
-  const safeName = js(p.name);
-  const status = esc(p.status);
   const expires = p.expires_at ? new Date(p.expires_at).toLocaleString() : 'N/A';
   const lastRefresh = p.last_refresh ? new Date(p.last_refresh).toLocaleString() : 'N/A';
-  const error = p.error ? ' | Error: ' + esc(p.error) : '';
   return `
   <div class="card">
     <div class="card-header">
-      <span class="provider-name">${name}</span>
-      <span class="status ${statusClass(p.status)}">${status}</span>
+      <span class="provider-name">${p.name}</span>
+      <span class="status ${statusClass(p.status)}">${p.status}</span>
     </div>
-    <div class="token-info">Expires: ${expires} | Last refresh: ${lastRefresh}${error}</div>
+    <div class="token-info">Expires: ${expires} | Last refresh: ${lastRefresh}${p.error ? ' | Error: '+p.error : ''}</div>
     <div class="actions" style="margin-top:8px">
-      <button class="btn btn-primary btn-sm" onclick="doRefresh('${safeName}')">Refresh</button>
-      <button class="btn btn-success btn-sm" onclick="showLoginFlow('${safeName}')">Login</button>
-      <button class="btn btn-secondary btn-sm" onclick="doRecover('${safeName}')">Recover</button>
-      <button class="btn btn-danger btn-sm" onclick="doLogout('${safeName}')">Logout</button>
+      <button class="btn btn-primary btn-sm" onclick="doRefresh('${p.name}')">Refresh</button>
+      <button class="btn btn-success btn-sm" onclick="showLoginFlow('${p.name}')">Login</button>
+      <button class="btn btn-secondary btn-sm" onclick="doRecover('${p.name}')">Recover</button>
+      <button class="btn btn-danger btn-sm" onclick="doLogout('${p.name}')">Logout</button>
     </div>
-    <div id="login-${name}" style="display:none;margin-top:8px">
+    <div id="login-${p.name}" style="display:none;margin-top:8px">
       <div class="login-form">
-        <select id="method-${name}">
+        <select id="method-${p.name}">
           <option value="browser">Browser</option>
           <option value="device_code">Device Code</option>
           <option value="api_key">API Key</option>
         </select>
-        <button class="btn btn-primary btn-sm" onclick="doLoginProvider('${safeName}')">Start</button>
+        <button class="btn btn-primary btn-sm" onclick="doLoginProvider('${p.name}')">Start</button>
       </div>
-      <div id="login-result-${name}" class="token-info"></div>
+      <div id="login-result-${p.name}" class="token-info"></div>
     </div>
   </div>`;
 }
@@ -177,18 +160,18 @@ function showLoginFlow(name) {
 }
 
 async function doRefresh(name) {
-  await api('/api/v1/providers/' + encodeURIComponent(name) + '/refresh', { method: 'POST' });
+  await api('/api/v1/providers/' + name + '/refresh', { method: 'POST' });
   loadProviders();
 }
 
 async function doRecover(name) {
-  await api('/api/v1/providers/' + encodeURIComponent(name) + '/recover', { method: 'POST' });
+  await api('/api/v1/providers/' + name + '/recover', { method: 'POST' });
   loadProviders();
 }
 
 async function doLogout(name) {
   if (!confirm('Logout ' + name + '?')) return;
-  await api('/api/v1/providers/' + encodeURIComponent(name) + '/token', { method: 'DELETE' });
+  await api('/api/v1/providers/' + name + '/token', { method: 'DELETE' });
   loadProviders();
 }
 
@@ -197,7 +180,7 @@ async function doLoginProvider(name) {
   const resultEl = document.getElementById('login-result-' + name);
   resultEl.textContent = 'Starting login...';
   try {
-    const r = await api('/api/v1/providers/' + encodeURIComponent(name) + '/login', { method: 'POST', body: { method } });
+    const r = await api('/api/v1/providers/' + name + '/login', { method: 'POST', body: { method } });
     resultEl.textContent = 'Login successful! Expires: ' + (r.expires_at ? new Date(r.expires_at).toLocaleString() : 'N/A');
     setTimeout(loadProviders, 1000);
   } catch(e) {

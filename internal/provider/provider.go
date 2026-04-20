@@ -37,12 +37,16 @@ func (t *TokenSet) IsExpired() bool {
 }
 
 // NeedsRefresh returns true if proactive refresh should be attempted:
-// either the token is expired, or last refresh was more than maxAge ago.
+// either the token is expired, last refresh was more than maxAge ago,
+// or last refresh is unknown (nil).
 func (t *TokenSet) NeedsRefresh(maxAge time.Duration) bool {
 	if t.IsExpired() {
 		return true
 	}
-	if t.LastRefresh != nil && time.Since(*t.LastRefresh) > maxAge {
+	if t.LastRefresh == nil {
+		return true
+	}
+	if time.Since(*t.LastRefresh) > maxAge {
 		return true
 	}
 	return false

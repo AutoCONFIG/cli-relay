@@ -27,22 +27,28 @@ type tokenData struct {
 }
 
 // defaultStoragePath returns the default path for auth.json.
-func defaultStoragePath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".codex", "auth.json")
+func defaultStoragePath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("get home directory: %w", err)
+	}
+	return filepath.Join(home, ".codex", "auth.json"), nil
 }
 
 // storagePath returns the configured or default storage path.
-func (p *Provider) storagePath() string {
+func (p *Provider) storagePath() (string, error) {
 	if p.cfg.StoragePath != "" {
-		return p.cfg.StoragePath
+		return p.cfg.StoragePath, nil
 	}
 	return defaultStoragePath()
 }
 
 // loadFromStorage reads tokens from the Codex CLI's auth.json.
 func (p *Provider) loadFromStorage() (*provider.TokenSet, error) {
-	path := p.storagePath()
+	path, err := p.storagePath()
+	if err != nil {
+		return nil, err
+	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -96,7 +102,10 @@ func (p *Provider) loadFromStorage() (*provider.TokenSet, error) {
 
 // saveToStorage writes tokens to the Codex CLI's auth.json format.
 func (p *Provider) saveToStorage(ts *provider.TokenSet) error {
-	path := p.storagePath()
+	path, err := p.storagePath()
+	if err != nil {
+		return err
+	}
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return fmt.Errorf("create auth dir: %w", err)
@@ -142,7 +151,10 @@ func (p *Provider) saveToStorage(ts *provider.TokenSet) error {
 
 // deleteStorage removes the auth.json file.
 func (p *Provider) deleteStorage() error {
-	path := p.storagePath()
+	path, err := p.storagePath()
+	if err != nil {
+		return err
+	}
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("delete auth.json: %w", err)
 	}

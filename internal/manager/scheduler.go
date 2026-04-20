@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/AutoCONFIG/cli-relay/internal/config"
@@ -16,7 +17,8 @@ type Scheduler struct {
 	retryBackoff  time.Duration
 	logger        *slog.Logger
 
-	stopCh chan struct{}
+	stopCh   chan struct{}
+	stopOnce sync.Once
 }
 
 // NewScheduler creates a new scheduler.
@@ -68,9 +70,11 @@ func (s *Scheduler) Start(ctx context.Context) {
 	}
 }
 
-// Stop gracefully shuts down the scheduler.
+// Stop gracefully shuts down the scheduler. Safe to call multiple times.
 func (s *Scheduler) Stop() {
-	close(s.stopCh)
+	s.stopOnce.Do(func() {
+		close(s.stopCh)
+	})
 }
 
 func (s *Scheduler) checkAndRefresh(ctx context.Context) {
@@ -87,12 +91,31 @@ func (s *Scheduler) checkAndRefresh(ctx context.Context) {
 		if tokens.NeedsRefresh(s.manager.proactiveRefreshAge(name)) {
 			s.logger.Info("proactive refresh needed", "provider", name)
 
-			_, err := s.manager.RefreshForce(ctx, name)
-			if err != nil {
-				s.logger.Error("proactive refresh failed",
-					"provider", name, "error", err)
-			} else {
-				s.logger.Info("proactive refresh succeeded", "provider", name)
+			var lastErr error
+			for attempt := 0; attempt < s.maxRetries; attempt++ {
+				if attempt > 0 {
+					s.logger.Info("retrying refresh", "provider", name, "attempt", attempt+1)
+					select {
+					case <-ctx.Done():
+						return
+					case <-time.After(s.retryBackoff):
+					}
+				}
+
+				_, err := s.manager.RefreshForce(ctx, name)
+				if err == nil {
+					s.logger.Info("proactive refresh succeeded", "provider", name, "attempt", attempt+1)
+					lastErr = nil
+					break
+				}
+				lastErr = err
+				s.logger.Warn("refresh attempt failed",
+					"provider", name, "attempt", attempt+1, "error", err)
+			}
+
+			if lastErr != nil {
+				s.logger.Error("proactive refresh failed after retries",
+					"provider", name, "error", lastErr)
 			}
 		}
 	}

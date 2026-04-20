@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -50,7 +51,8 @@ type Config struct {
 
 // Provider implements provider.Provider for OpenAI Codex.
 type Provider struct {
-	cfg Config
+	cfg    Config
+	client *http.Client
 }
 
 // New creates a new Codex provider.
@@ -58,7 +60,12 @@ func New(cfg Config) *Provider {
 	if cfg.Issuer == "" {
 		cfg.Issuer = DefaultIssuer
 	}
-	return &Provider{cfg: cfg}
+	return &Provider{
+		cfg: cfg,
+		client: &http.Client{
+			Timeout: 30 * time.Second,
+		},
+	}
 }
 
 func (p *Provider) Name() string {

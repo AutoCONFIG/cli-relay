@@ -17,6 +17,7 @@ import (
 	codexprovider "github.com/AutoCONFIG/cli-relay/internal/provider/codex"
 	"github.com/AutoCONFIG/cli-relay/internal/provider"
 	"github.com/AutoCONFIG/cli-relay/internal/server"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func main() {
@@ -54,6 +55,7 @@ func main() {
 	defer database.Close()
 
 	// Setup admin password from config if set and DB has none
+	// Hash the config password with bcrypt before storing
 	if cfg.Admin.Password != "" {
 		hasAdmin, err := database.HasAdmin()
 		if err != nil {
@@ -61,7 +63,12 @@ func main() {
 			os.Exit(1)
 		}
 		if !hasAdmin {
-			if err := database.SetAdminPassword(cfg.Admin.Password); err != nil {
+			hash, err := bcrypt.GenerateFromPassword([]byte(cfg.Admin.Password), bcrypt.DefaultCost)
+			if err != nil {
+				logger.Error("failed to hash admin password", "error", err)
+				os.Exit(1)
+			}
+			if err := database.SetAdminPassword(string(hash)); err != nil {
 				logger.Error("failed to set admin password", "error", err)
 				os.Exit(1)
 			}
@@ -112,21 +119,27 @@ func main() {
 		WriteTimeout: 30 * time.Second,
 	}
 
-	// Start HTTP server
+	// Start HTTP server — send errors via channel instead of os.Exit
+	serverErr := make(chan error, 1)
 	go func() {
 		logger.Info("starting server", "listen", cfg.Server.Listen)
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error("server error", "error", err)
-			os.Exit(1)
+			serverErr <- err
 		}
 	}()
 
-	// Wait for shutdown signal
+	// Wait for shutdown signal or server error
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
 
-	logger.Info("shutting down...")
+	select {
+	case err := <-serverErr:
+		logger.Error("server error", "error", err)
+		// Don't os.Exit — let defers run
+	case sig := <-quit:
+		logger.Info("received signal, shutting down...", "signal", sig)
+	}
+
 	sched.Stop()
 	cancel()
 

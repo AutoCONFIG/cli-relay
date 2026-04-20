@@ -54,7 +54,7 @@ func (p *Provider) Revoke(ctx context.Context, tokens *provider.TokenSet) error 
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := p.client.Do(req)
 	if err != nil {
 		return fmt.Errorf("revoke request: %w", err)
 	}
