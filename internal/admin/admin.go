@@ -191,6 +191,9 @@ func (h *Handler) updateChannel(ctx *fasthttp.RequestCtx) {
 		updates["models"] = req.Models
 	}
 	updates["priority"] = req.Priority
+	updates["api_format"] = req.APIFormat
+	updates["force_stream"] = req.ForceStream
+	updates["affinity_ttl"] = req.AffinityTTL
 	updates["updated_at"] = time.Now()
 	if err := h.db.Model(&existing).Updates(updates).Error; err != nil {
 		h.jsonError(ctx, fasthttp.StatusInternalServerError, "update failed")

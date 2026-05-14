@@ -29,7 +29,7 @@ func New(cfg *config.Config, database *gorm.DB, pools *relay.PoolManager, billin
 		db:      database,
 		pools:   pools,
 		billing: billing,
-		relayer: relay.NewRelayer(database, pools, billing),
+		relayer: relay.NewRelayer(database, pools, billing, relay.NewAffinityCache()),
 		admin:   admin.NewHandler(database, cfg),
 	}
 }

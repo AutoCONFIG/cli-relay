@@ -19,12 +19,15 @@ type Base struct {
 
 type Channel struct {
 	Base
-	Name     string `gorm:"size:100;not null" json:"name"`
-	Type     string `gorm:"size:50;not null" json:"type"` // openai, anthropic, gemini
-	Endpoint string `gorm:"size:500;not null" json:"endpoint"`
-	Enabled  bool   `gorm:"default:true" json:"enabled"`
-	Models   string `gorm:"type:text" json:"models"` // comma-separated
-	Priority int    `gorm:"default:0" json:"priority"`
+	Name        string `gorm:"size:100;not null" json:"name"`
+	Type        string `gorm:"size:50;not null" json:"type"` // openai, anthropic, gemini
+	Endpoint    string `gorm:"size:500;not null" json:"endpoint"`
+	Enabled     bool   `gorm:"default:true" json:"enabled"`
+	Models      string `gorm:"type:text" json:"models"` // comma-separated
+	Priority    int    `gorm:"default:0" json:"priority"`
+	APIFormat   string `gorm:"size:20;default:'standard'" json:"api_format"` // standard | responses
+	ForceStream bool   `gorm:"default:false" json:"force_stream"`
+	AffinityTTL int    `gorm:"default:0" json:"affinity_ttl"` // seconds, 0=disabled
 }
 
 func (Channel) TableName() string { return "channels" }

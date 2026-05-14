@@ -174,6 +174,9 @@ tr:hover td { background: rgba(99,102,241,.05); }
     <div class="form-group"><label>Endpoint</label><input id="ch-endpoint" placeholder="https://api.openai.com"></div>
     <div class="form-group"><label>Models (comma-separated)</label><input id="ch-models" placeholder="gpt-4o,gpt-4o-mini"></div>
     <div class="form-group"><label>Priority</label><input id="ch-priority" type="number" value="0"></div>
+    <div class="form-group"><label>API Format</label><select id="ch-api-format"><option value="standard">Standard (Chat Completions)</option><option value="responses">Responses API</option></select></div>
+    <div class="form-group"><label>Force Stream</label><select id="ch-force-stream"><option value="false">Disabled</option><option value="true">Enabled</option></select></div>
+    <div class="form-group"><label>Affinity TTL (seconds, 0=disabled)</label><input id="ch-affinity-ttl" type="number" value="0"></div>
     <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('channelModal')">Cancel</button><button class="btn btn-primary" onclick="saveChannel()">Save</button></div>
   </div>
 </div>
@@ -314,6 +317,9 @@ function openChannelModal(ch) {
   document.getElementById('ch-endpoint').value = ch ? ch.endpoint : '';
   document.getElementById('ch-models').value = ch ? ch.models : '';
   document.getElementById('ch-priority').value = ch ? ch.priority : 0;
+  document.getElementById('ch-api-format').value = ch ? (ch.api_format || 'standard') : 'standard';
+  document.getElementById('ch-force-stream').value = ch ? String(!!ch.force_stream) : 'false';
+  document.getElementById('ch-affinity-ttl').value = ch ? (ch.affinity_ttl || 0) : 0;
   openModal('channelModal');
 }
 function editChannel(ch) { openChannelModal(ch); }
@@ -322,7 +328,10 @@ async function saveChannel() {
   const id = document.getElementById('ch-id').value;
   const body = { name: document.getElementById('ch-name').value, type: document.getElementById('ch-type').value,
     endpoint: document.getElementById('ch-endpoint').value, models: document.getElementById('ch-models').value,
-    priority: parseInt(document.getElementById('ch-priority').value), enabled: true };
+    priority: parseInt(document.getElementById('ch-priority').value), enabled: true,
+    api_format: document.getElementById('ch-api-format').value,
+    force_stream: document.getElementById('ch-force-stream').value === 'true',
+    affinity_ttl: parseInt(document.getElementById('ch-affinity-ttl').value) || 0 };
   const r = id ? await api('PUT', '/api/admin/channels?id='+id, body) : await api('POST', '/api/admin/channels', body);
   if (r.code === 0) { closeModal('channelModal'); loadChannels(); toast('Saved'); } else toast(r.message, 'error');
 }

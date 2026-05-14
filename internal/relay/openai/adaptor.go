@@ -21,6 +21,12 @@ func (a *OpenAIAdaptor) Init(channel *db.Channel, account *db.Account) {
 
 func (a *OpenAIAdaptor) GetRequestURL(path string) (string, error) {
 	base := strings.TrimRight(a.channel.Endpoint, "/")
+	if a.channel.APIFormat == "responses" {
+		// Map /v1/chat/completions → /v1/responses
+		if strings.HasSuffix(path, "/chat/completions") {
+			return base + "/v1/responses", nil
+		}
+	}
 	return base + path, nil
 }
 
@@ -31,7 +37,9 @@ func (a *OpenAIAdaptor) SetupRequestHeader(req *fasthttp.Request, credentials st
 }
 
 func (a *OpenAIAdaptor) ConvertRequest(body []byte) ([]byte, error) {
-	// OpenAI format passthrough — no conversion needed
+	if a.channel.APIFormat == "responses" {
+		return ChatToResponses(body)
+	}
 	return body, nil
 }
 
@@ -61,6 +69,16 @@ func (a *OpenAIAdaptor) ParseStreamUsage(lastChunk []byte) (int, int, error) {
 		return 0, 0, nil // might not have usage in stream
 	}
 	return resp.Usage.PromptTokens, resp.Usage.CompletionTokens, nil
+}
+
+func (a *OpenAIAdaptor) ConvertResponse(respBody []byte, isStream bool) ([]byte, error) {
+	if a.channel.APIFormat == "responses" {
+		if isStream {
+			return StreamResponsesToChat(respBody), nil
+		}
+		return ResponsesToChat(respBody)
+	}
+	return respBody, nil
 }
 
 func (a *OpenAIAdaptor) GetChannelType() string { return "openai" }

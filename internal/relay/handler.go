@@ -18,13 +18,14 @@ import (
 )
 
 type Relayer struct {
-	db      *gorm.DB
-	pools   *PoolManager
-	billing *BillingService
+	db       *gorm.DB
+	pools    *PoolManager
+	billing  *BillingService
+	affinity *AffinityCache
 }
 
-func NewRelayer(database *gorm.DB, pools *PoolManager, billing *BillingService) *Relayer {
-	return &Relayer{db: database, pools: pools, billing: billing}
+func NewRelayer(database *gorm.DB, pools *PoolManager, billing *BillingService, affinity *AffinityCache) *Relayer {
+	return &Relayer{db: database, pools: pools, billing: billing, affinity: affinity}
 }
 
 type relayRequest struct {
@@ -69,17 +70,31 @@ func (r *Relayer) HandleRelay(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	// 4. Find channel that supports this model
-	var channels []db.Channel
-	if err := r.db.Where("enabled = true AND deleted_at IS NULL").Order("priority DESC").Find(&channels).Error; err != nil {
-		ctx.Error(`{"error":"internal error"}`, fasthttp.StatusInternalServerError)
-		return
-	}
+	// 4. Find channel — affinity first, then priority
 	var targetChannel *db.Channel
-	for i := range channels {
-		if modelInList(req.Model, channels[i].Models) {
-			targetChannel = &channels[i]
-			break
+
+	// 4a. Try affinity cache
+	if chID := r.affinity.Get(token.ID.String(), req.Model); chID != "" {
+		var ch db.Channel
+		if err := r.db.Where("id = ? AND enabled = true AND deleted_at IS NULL", chID).First(&ch).Error; err == nil {
+			if modelInList(req.Model, ch.Models) {
+				targetChannel = &ch
+			}
+		}
+	}
+
+	// 4b. Fall back to priority-based selection
+	if targetChannel == nil {
+		var channels []db.Channel
+		if err := r.db.Where("enabled = true AND deleted_at IS NULL").Order("priority DESC").Find(&channels).Error; err != nil {
+			ctx.Error(`{"error":"internal error"}`, fasthttp.StatusInternalServerError)
+			return
+		}
+		for i := range channels {
+			if modelInList(req.Model, channels[i].Models) {
+				targetChannel = &channels[i]
+				break
+			}
 		}
 	}
 	if targetChannel == nil {
@@ -110,7 +125,7 @@ func (r *Relayer) HandleRelay(ctx *fasthttp.RequestCtx) {
 	// 7. Pre-consume billing
 	estimatedTokens := req.MaxTokens
 	if estimatedTokens == 0 {
-		estimatedTokens = 1000 // rough estimate
+		estimatedTokens = 1000
 	}
 	if r.billing != nil {
 		_ = r.billing.PreConsume(token.ID.String(), req.Model, estimatedTokens)
@@ -131,6 +146,28 @@ func (r *Relayer) HandleRelay(ctx *fasthttp.RequestCtx) {
 		ctx.Error(`{"error":"build url failed"}`, fasthttp.StatusInternalServerError)
 		return
 	}
+
+	// 9a. Force stream: override stream=true if channel requires it
+	forceStreamActive := targetChannel.ForceStream && !req.Stream
+	if forceStreamActive {
+		// Inject stream=true into body for upstream
+		if idx := bytes.LastIndexByte(body, '}'); idx > 0 {
+			if bytes.Contains(body, []byte(`"stream"`)) {
+				// Replace existing "stream":false with "stream":true
+				body = bytes.Replace(body, []byte(`"stream":false`), []byte(`"stream":true`), 1)
+				body = bytes.Replace(body, []byte(`"stream": false`), []byte(`"stream": true`), 1)
+			} else {
+				body = append(body[:idx], append([]byte(`,"stream":true}`), body[idx+1:]...)...)
+			}
+		} else {
+			var bodyMap map[string]interface{}
+			if err := json.Unmarshal(body, &bodyMap); err == nil {
+				bodyMap["stream"] = true
+				body, _ = json.Marshal(bodyMap)
+			}
+		}
+	}
+
 	convertedBody, err := adaptor.ConvertRequest(body)
 	if err != nil {
 		ctx.Error(`{"error":"convert request failed"}`, fasthttp.StatusBadRequest)
@@ -165,6 +202,7 @@ func (r *Relayer) HandleRelay(ctx *fasthttp.RequestCtx) {
 			log.Printf("upstream request error (retry %d): %v", retry, err)
 			fasthttp.ReleaseResponse(upResp)
 			pool.Cooldown(account.ID.String(), 5*time.Minute)
+			r.affinity.EvictChannel(targetChannel.ID.String())
 			account, ok = pool.Pick()
 			if !ok {
 				break
@@ -178,12 +216,12 @@ func (r *Relayer) HandleRelay(ctx *fasthttp.RequestCtx) {
 		if upResp.StatusCode() >= 500 {
 			log.Printf("upstream %d error (retry %d)", upResp.StatusCode(), retry)
 			pool.Cooldown(account.ID.String(), 5*time.Minute)
-			// Copy data before releasing
 			respBody = make([]byte, len(upResp.Body()))
 			copy(respBody, upResp.Body())
 			statusCode = upResp.StatusCode()
 			upResp.Header.VisitAll(func(k, v []byte) { respHeaders.SetBytesKV(k, v) })
 			fasthttp.ReleaseResponse(upResp)
+			r.affinity.EvictChannel(targetChannel.ID.String())
 			account, ok = pool.Pick()
 			if !ok {
 				break
@@ -205,7 +243,6 @@ func (r *Relayer) HandleRelay(ctx *fasthttp.RequestCtx) {
 	}
 
 	if respBody == nil || respAccount == nil {
-		// Refund on failure
 		if r.billing != nil {
 			r.billing.Refund(token.ID.String(), estimatedTokens)
 		}
@@ -213,18 +250,30 @@ func (r *Relayer) HandleRelay(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	// 11. Forward response
+	// 11. Convert response format if needed
+	respBody, err = adaptor.ConvertResponse(respBody, req.Stream || forceStreamActive)
+	if err != nil {
+		log.Printf("convert response error: %v", err)
+	}
+
+	// 11a. Force stream: convert buffered stream back to non-stream
+	if forceStreamActive {
+		respBody = StreamToNonStream(respBody)
+	}
+
+	// 12. Forward response
 	ctx.SetStatusCode(statusCode)
 	respHeaders.VisitAll(func(key, value []byte) {
 		ctx.Response.Header.SetBytesKV(key, value)
 	})
 
+	// Use req.Stream (original client intent) for response format,
+	// NOT forceStreamActive — force stream is upstream-only.
 	if req.Stream {
 		ctx.Response.Header.Set("Content-Type", "text/event-stream")
 		ctx.Response.Header.Set("Cache-Control", "no-cache")
 		ctx.Response.Header.Set("Connection", "keep-alive")
 		ctx.Response.Header.Set("X-Accel-Buffering", "no")
-		// Parse usage from the buffered body before streaming to client
 		lastData := extractLastSSEData(respBody)
 		if pt, ct, err := adaptor.ParseStreamUsage(lastData); err == nil && pt > 0 {
 			go r.writeLog(token.ID, targetChannel.ID, respAccount.ID, req.Model, true, pt, ct, start)
@@ -232,16 +281,48 @@ func (r *Relayer) HandleRelay(ctx *fasthttp.RequestCtx) {
 				go r.billing.Settle(token.ID.String(), pt, ct, req.Model)
 			}
 		}
-		// Stream buffered body to client
 		ctx.SetBody(respBody)
 	} else {
+		// Non-stream response (includes forceStreamActive path after conversion)
 		ctx.SetBody(respBody)
-		if pt, ct, err := adaptor.ParseUsage(respBody); err == nil {
+		// Parse usage: try non-stream format first, fall back to stream format for forceStream
+		if pt, ct, err := adaptor.ParseUsage(respBody); err == nil && pt > 0 {
 			go r.writeLog(token.ID, targetChannel.ID, respAccount.ID, req.Model, false, pt, ct, start)
 			if r.billing != nil {
 				go r.billing.Settle(token.ID.String(), pt, ct, req.Model)
 			}
+		} else if forceStreamActive {
+			// Usage is embedded in the converted non-stream body from StreamToNonStream
+			var respMap map[string]interface{}
+			if json.Unmarshal(respBody, &respMap) == nil {
+				if u, ok := respMap["usage"].(map[string]interface{}); ok {
+					pt := int(safeFloat(u["prompt_tokens"]))
+					ct := int(safeFloat(u["completion_tokens"]))
+					if pt > 0 || ct > 0 {
+						go r.writeLog(token.ID, targetChannel.ID, respAccount.ID, req.Model, false, pt, ct, start)
+						if r.billing != nil {
+							go r.billing.Settle(token.ID.String(), pt, ct, req.Model)
+						}
+					}
+				}
+			}
 		}
+	}
+
+	// 13. Record affinity on success
+	if targetChannel.AffinityTTL > 0 {
+		r.affinity.Set(token.ID.String(), req.Model, targetChannel.ID.String(), targetChannel.AffinityTTL)
+	}
+}
+
+func safeFloat(v interface{}) float64 {
+	switch n := v.(type) {
+	case float64:
+		return n
+	case int:
+		return float64(n)
+	default:
+		return 0
 	}
 }
 

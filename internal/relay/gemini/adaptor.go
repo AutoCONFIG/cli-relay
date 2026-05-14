@@ -64,4 +64,8 @@ func (a *GeminiAdaptor) ParseStreamUsage(lastChunk []byte) (int, int, error) {
 	return resp.UsageMetadata.PromptTokenCount, resp.UsageMetadata.CandidatesTokenCount, nil
 }
 
+func (a *GeminiAdaptor) ConvertResponse(respBody []byte, isStream bool) ([]byte, error) {
+	return respBody, nil
+}
+
 func (a *GeminiAdaptor) GetChannelType() string { return "gemini" }

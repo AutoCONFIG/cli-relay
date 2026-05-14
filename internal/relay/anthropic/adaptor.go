@@ -94,4 +94,8 @@ func (a *AnthropicAdaptor) ParseStreamUsage(lastChunk []byte) (int, int, error) 
 	return resp.Usage.InputTokens, resp.Usage.OutputTokens, nil
 }
 
+func (a *AnthropicAdaptor) ConvertResponse(respBody []byte, isStream bool) ([]byte, error) {
+	return respBody, nil
+}
+
 func (a *AnthropicAdaptor) GetChannelType() string { return "anthropic" }
