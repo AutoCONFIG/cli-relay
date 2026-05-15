@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"log"
 	"time"
 
 	"github.com/AutoCONFIG/cli-relay/internal/db"
@@ -14,8 +15,7 @@ func StartLogCleanup(database *gorm.DB, retentionDays int) {
 		defer ticker.Stop()
 		for range ticker.C {
 			if err := CleanupOldLogs(database, retentionDays); err != nil {
-				// log but don't crash
-				_ = err
+				log.Printf("log cleanup failed: %v", err)
 			}
 		}
 	}()
@@ -29,7 +29,7 @@ func InitPools(database *gorm.DB, setPool func(channelID string, accounts []*db.
 	}
 	for _, ch := range channels {
 		var accounts []*db.Account
-		database.Where("channel_id = ? AND enabled = true", ch.ID).Find(&accounts)
+		database.Where("channel_id = ? AND enabled = true AND deleted_at IS NULL", ch.ID).Find(&accounts)
 		setPool(ch.ID.String(), accounts)
 	}
 	return nil

@@ -163,7 +163,11 @@ func (h *Handler) DeleteKey(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	keyID := ctx.UserValue("keyID").(string)
+	keyID, ok := ctx.UserValue("keyID").(string)
+	if !ok || keyID == "" {
+		sendError(ctx, 400, "missing key ID")
+		return
+	}
 	if err := h.service.DeleteKey(userID, keyID); err != nil {
 		sendError(ctx, 404, err.Error())
 		return
@@ -234,7 +238,11 @@ func (h *Handler) Subscribe(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	planID := ctx.UserValue("planID").(string)
+	planID, ok := ctx.UserValue("planID").(string)
+	if !ok || planID == "" {
+		sendError(ctx, 400, "missing plan ID")
+		return
+	}
 	if err := h.service.Subscribe(userID, planID); err != nil {
 		sendError(ctx, 400, err.Error())
 		return

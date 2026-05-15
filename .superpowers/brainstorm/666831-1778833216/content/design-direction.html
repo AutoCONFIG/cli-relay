@@ -1,0 +1,110 @@
+<h2>前端设计方向</h2>
+<p class="subtitle">选择一个整体视觉风格方向 — 你希望用户的第一印象是什么？</p>
+
+<div class="cards">
+  <div class="card" data-choice="stripe" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:linear-gradient(135deg,#f8f9fa,#e8ecf1);padding:24px;min-height:200px">
+      <div style="background:white;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.08);overflow:hidden">
+        <div style="background:linear-gradient(90deg,#635bff,#7c3aed);height:4px"></div>
+        <div style="padding:16px 20px;display:flex;align-items:center;gap:12px">
+          <div style="width:28px;height:28px;background:#635bff;border-radius:6px"></div>
+          <span style="font-weight:600;font-size:14px;color:#1a1a2e">API Relay</span>
+          <div style="margin-left:auto;display:flex;gap:16px;font-size:13px;color:#6b7280">
+            <span>控制台</span><span>用量</span><span>API Key</span><span>套餐</span>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="background:white;border-radius:10px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.06)">
+          <div style="font-size:11px;color:#9ca3af;text-transform:uppercase">本月请求</div>
+          <div style="font-size:24px;font-weight:700;color:#1a1a2e;margin-top:4px">128,492</div>
+        </div>
+        <div style="background:white;border-radius:10px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.06)">
+          <div style="font-size:11px;color:#9ca3af;text-transform:uppercase">令牌消耗</div>
+          <div style="font-size:24px;font-weight:700;color:#1a1a2e;margin-top:4px">2.4M</div>
+        </div>
+      </div>
+      <div style="margin-top:12px;background:white;border-radius:10px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.06)">
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:#6b7280;margin-bottom:8px">
+          <span>套餐额度</span><span>67% 已用</span>
+        </div>
+        <div style="background:#e5e7eb;border-radius:4px;height:6px;overflow:hidden">
+          <div style="background:linear-gradient(90deg,#635bff,#7c3aed);height:100%;width:67%;border-radius:4px"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. Stripe 风格</h3>
+      <p>极简白底，紫蓝渐变点缀，卡片式布局。大量留白，信息密度适中。顶级 SaaS 标准设计。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="linear" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:linear-gradient(135deg,#f0fdf4,#ecfdf5);padding:24px;min-height:200px">
+      <div style="background:white;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.08);overflow:hidden">
+        <div style="background:linear-gradient(90deg,#059669,#10b981);height:4px"></div>
+        <div style="padding:16px 20px;display:flex;align-items:center;gap:12px">
+          <div style="width:28px;height:28px;background:linear-gradient(135deg,#059669,#10b981);border-radius:6px;display:flex;align-items:center;justify-content:center;color:white;font-size:14px;font-weight:700">R</div>
+          <span style="font-weight:600;font-size:14px;color:#1a1a2e">API Relay</span>
+          <div style="margin-left:auto;display:flex;gap:16px;font-size:13px;color:#6b7280">
+            <span style="color:#059669;font-weight:500">概览</span><span>模型</span><span>密钥</span><span>账单</span>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:16px;background:white;border-radius:10px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.06)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          <div style="width:8px;height:8px;background:#10b981;border-radius:50%"></div>
+          <span style="font-size:12px;color:#059669;font-weight:500">系统正常运行</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+          <div style="text-align:center;padding:8px;background:#f0fdf4;border-radius:8px">
+            <div style="font-size:18px;font-weight:700;color:#1a1a2e">12</div>
+            <div style="font-size:10px;color:#6b7280">可用模型</div>
+          </div>
+          <div style="text-align:center;padding:8px;background:#f0fdf4;border-radius:8px">
+            <div style="font-size:18px;font-weight:700;color:#1a1a2e">99.9%</div>
+            <div style="font-size:10px;color:#6b7280">可用率</div>
+          </div>
+          <div style="text-align:center;padding:8px;background:#f0fdf4;border-radius:8px">
+            <div style="font-size:18px;font-weight:700;color:#1a1a2e">23ms</div>
+            <div style="font-size:10px;color:#6b7280">平均延迟</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. Linear 风格</h3>
+      <p>白底绿色系，数据驱动，紧凑信息密度。强调实时状态和关键指标，科技感强。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="vercel" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:linear-gradient(135deg,#fafafa,#f5f5f5);padding:24px;min-height:200px">
+      <div style="background:white;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.08);overflow:hidden">
+        <div style="border-bottom:1px solid #e5e7eb;padding:16px 20px;display:flex;align-items:center;gap:12px">
+          <div style="width:28px;height:28px;background:#171717;border-radius:6px;display:flex;align-items:center;justify-content:center">
+            <div style="width:12px;height:12px;border-top:2px solid white;border-right:2px solid white;transform:rotate(45deg);margin-left:-3px"></div>
+          </div>
+          <span style="font-weight:600;font-size:14px;color:#171717">API Relay</span>
+          <div style="margin-left:auto;display:flex;gap:8px">
+            <span style="background:#171717;color:white;font-size:11px;padding:3px 10px;border-radius:20px">控制台</span>
+            <span style="font-size:13px;color:#a1a1a1">文档</span>
+            <span style="font-size:13px;color:#a1a1a1">用量</span>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:16px;background:white;border-radius:10px;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,.06)">
+        <div style="font-size:13px;color:#171717;font-weight:600;margin-bottom:12px">快速开始</div>
+        <div style="background:#171717;border-radius:8px;padding:14px;font-family:monospace;font-size:12px;color:#a3e635">
+          <div><span style="color:#737373">$</span> curl https://api.relay.dev/v1/chat</div>
+          <div style="margin-top:4px"><span style="color:#737373">  -H "Authorization: Bearer sk-relay-..."</span></div>
+          <div style="margin-top:4px"><span style="color:#737373">  -d '{"model":"gpt-4o","messages":[...]}'</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. Vercel 风格</h3>
+      <p>黑白极简，强调代码和开发者体验。大量使用代码块和等宽字体。开发者产品首选。</p>
+    </div>
+  </div>
+</div>

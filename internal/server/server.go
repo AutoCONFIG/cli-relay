@@ -110,6 +110,10 @@ func (s *Server) setupRoutes() {
 	r.PUT("/api/admin/plans", s.handleAdminAuth(s.adminHandler.HandlePlans))
 	r.DELETE("/api/admin/plans", s.handleAdminAuth(s.adminHandler.HandlePlans))
 	r.GET("/api/admin/logs", s.handleAdminAuth(s.adminHandler.HandleLogs))
+	r.GET("/api/admin/audit-logs", s.handleAdminAuth(s.adminHandler.ListAuditLogs))
+	r.GET("/api/admin/users", s.handleAdminAuth(s.adminHandler.ListUsers))
+	r.PUT("/api/admin/users", s.handleAdminAuth(s.adminHandler.UpdateUser))
+	r.DELETE("/api/admin/users", s.handleAdminAuth(s.adminHandler.DeleteUser))
 
 	// User auth (no JWT required)
 	r.POST("/api/user/register", s.userHandler.Register)

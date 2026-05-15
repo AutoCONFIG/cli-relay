@@ -1,0 +1,2 @@
+{"type":"server-started","port":51603,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:51603","screen_dir":"/media/yun/de2a43ce-446c-4a62-99b3-8ddc6ea1ef87/cli-relay/.superpowers/brainstorm/587527-1778830065/content","state_dir":"/media/yun/de2a43ce-446c-4a62-99b3-8ddc6ea1ef87/cli-relay/.superpowers/brainstorm/587527-1778830065/state"}
+{"type":"server-stopped","reason":"idle timeout"}

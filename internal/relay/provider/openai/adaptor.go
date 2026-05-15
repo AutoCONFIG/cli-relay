@@ -91,4 +91,8 @@ func (a *OpenAIAdaptor) GetChannelType() string { return "openai" }
 func init() {
 	provider.RegisterToInternal(provider.FormatOpenAIChat, openaiChatToInternal)
 	provider.RegisterFromInternal(provider.FormatOpenAIChat, internalToOpenAIChat)
+	// Responses API uses the same input format as Chat (OpenAI messages)
+	// but outputs in Responses format when channel APIFormat == "responses"
+	provider.RegisterToInternal(provider.FormatOpenAIResp, openaiChatToInternal)
+	provider.RegisterFromInternal(provider.FormatOpenAIResp, internalToResponses)
 }

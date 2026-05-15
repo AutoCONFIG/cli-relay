@@ -36,7 +36,9 @@ func (cl *ConcurrencyLimiter) Acquire(key string) bool {
 func (cl *ConcurrencyLimiter) Release(key string) {
 	cl.mu.Lock()
 	defer cl.mu.Unlock()
-	cl.counts[key]--
+	if cl.counts[key] > 0 {
+		cl.counts[key]--
+	}
 	if cl.counts[key] <= 0 {
 		delete(cl.counts, key)
 	}

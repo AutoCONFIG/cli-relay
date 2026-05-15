@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AutoCONFIG/cli-relay/internal/auth"
 	"github.com/AutoCONFIG/cli-relay/internal/db"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -322,44 +323,28 @@ func (s *Service) RedeemCode(userID, code string) (int64, error) {
 	return redeemCode.Value, nil
 }
 
-// Helper: generate user JWT
+// Helper: generate user JWT using auth package
 func (s *Service) generateUserToken(userID, username string) (string, error) {
-	claims := jwt.MapClaims{
-		"sub": userID,
-		"name": username,
-		"iat": time.Now().Unix(),
-		"exp": time.Now().Add(s.jwtExpiry).Unix(),
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(s.jwtSecret))
+	return auth.GenerateToken(s.jwtSecret, userID, username, auth.TokenTypeUser, s.jwtExpiry)
 }
 
 // Helper: parse token allowing expired (for refresh)
 func (s *Service) parseTokenAllowExpired(tokenStr string) (string, string, error) {
-	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		return []byte(s.jwtSecret), nil
-	})
-
+	claims, err := auth.ParseToken(s.jwtSecret, tokenStr)
 	if err != nil {
-		// Check if it's just an expiration error - still allow for refresh
-		if !strings.Contains(err.Error(), "token is expired") {
-			return "", "", err
+		if errors.Is(err, auth.ErrExpiredToken) {
+			// Expired is OK for refresh — extract from raw claims
+			parser := jwt.NewParser(jwt.WithoutClaimsValidation())
+			token, _, parseErr := parser.ParseUnverified(tokenStr, &auth.Claims{})
+			if parseErr != nil {
+				return "", "", parseErr
+			}
+			if c, ok := token.Claims.(*auth.Claims); ok {
+				return c.UserID, c.Username, nil
+			}
+			return "", "", fmt.Errorf("invalid token claims")
 		}
+		return "", "", err
 	}
-
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		return "", "", fmt.Errorf("invalid token claims")
-	}
-
-	userID, ok := claims["sub"].(string)
-	if !ok {
-		return "", "", fmt.Errorf("invalid token subject")
-	}
-	username, _ := claims["name"].(string)
-
-	return userID, username, nil
+	return claims.UserID, claims.Username, nil
 }
