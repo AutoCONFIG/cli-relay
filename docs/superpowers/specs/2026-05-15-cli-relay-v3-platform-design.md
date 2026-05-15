@@ -1,7 +1,7 @@
 ---
 title: cli-relay v3 — API 中转平台设计
 date: 2026-05-15
-status: draft
+status: approved
 ---
 
 # cli-relay v3 — API 中转平台设计文档
@@ -11,7 +11,7 @@ status: draft
 cli-relay 是一个**面向公众的 AI API 中转平台**。用户注册账号后购买套餐，获取 API Key 调用 OpenAI/Anthropic/Gemini 等上游服务。管理员管理渠道、账号池、计费等后台功能。
 
 核心能力：
-- 透明代理 + 格式转换（OpenAI/Anthropic/Gemini 三种格式互转，客户端可用任一原生格式接入）
+- 透明代理 + 格式转换（OpenAI Chat/Responses、Anthropic、Gemini 四种格式互转，客户端可用任一原生格式接入）
 - 账号池管理（加权轮询 + 故障冷却 + OAuth 自动刷新）
 - 双模式计费（次数窗口限额 + Token 额度扣费）
 - 用户注册/登录/套餐购买/API Key 管理
@@ -142,18 +142,26 @@ internal/
 │   ├── sse_reader.go          # SSE 读取器
 │   ├── stream_converter.go    # 流式→非流式转换
 │   └── provider/              # 上游适配器
-│       ├── types.go           # Adaptor 接口 + 凭证提取
+│       ├── types.go           # Adaptor 接口 + 中间格式定义
+│       ├── credentials.go     # 凭证提取
+│       ├── convert.go         # 中间格式转换调度
 │       ├── openai/
 │       │   ├── adaptor.go     # 请求/响应透传
 │       │   ├── responses.go   # Responses API ↔ Chat 转换
+│       │   ├── to_internal.go # OpenAI → InternalRequest
+│       │   ├── from_internal.go # InternalRequest → OpenAI
 │       │   └── auth.go        # OpenAI OAuth（Codex 流程）
 │       ├── anthropic/
-│       │   ├── adaptor.go     # OpenAI ↔ Anthropic 格式转换
-│       │   ├── streaming.go   # Anthropic SSE → OpenAI SSE
-│       │   └── auth.go        # Anthropic OAuth（如适用）
+│       │   ├── adaptor.go     # Anthropic 格式转换
+│       │   ├── streaming.go   # Anthropic SSE 流式转换
+│       │   ├── to_internal.go # Anthropic → InternalRequest
+│       │   ├── from_internal.go # InternalRequest → Anthropic
+│       │   └── auth.go        # Anthropic OAuth（预留）
 │       └── gemini/
-│           ├── adaptor.go     # OpenAI ↔ Gemini 格式转换
-│           ├── streaming.go   # Gemini SSE → OpenAI SSE
+│           ├── adaptor.go     # Gemini 格式转换
+│           ├── streaming.go   # Gemini SSE 流式转换
+│           ├── to_internal.go # Gemini → InternalRequest
+│           ├── from_internal.go # InternalRequest → Gemini
 │           └── auth.go        # Google OAuth（Gemini CLI 流程）
 │
 ├── user/                      # 用户系统
@@ -182,7 +190,7 @@ internal/
 │   ├── token.go
 │   ├── plan.go
 │   ├── user.go                # 用户模型
-│   ├── user_token.go          # 用户-令牌关联
+│   ├── redeem_code.go         # 充值码模型
 │   ├── log.go
 │   └── audit_log.go
 │
@@ -306,13 +314,13 @@ type InternalMessage struct {
 
 #### 流式转换
 
-SSE 逐行转换不走中间格式，直接在 adaptor 层做 provider-specific 的行转换（与当前实现一致）：
+SSE 逐行转换不走中间格式，直接在 adaptor 层做 provider-specific 的行转换：
 
 ```
-上游 SSE line → adaptor.ConvertStreamLine() → 客户端格式的 SSE line
+上游 SSE line → adaptor.ConvertStreamLine(line, clientFormat) → 客户端格式的 SSE line
 ```
 
-每个 adaptor 实现两种流式转换：`ToInternalStreamLine` 和 `FromInternalStreamLine`，覆盖所有 4×3=12 种非透传组合。
+每个 adaptor 的 `ConvertStreamLine` 根据客户端格式参数决定输出格式，覆盖所有 4×3=12 种非透传组合。
 
 #### 透传
 
@@ -451,12 +459,13 @@ func (a *Account) EnsureValidCredentials() (string, error) {
 
 以下组件从现有代码直接迁移，不重写：
 
-| 组件 | 原位置 | 说明 |
-|------|--------|------|
-| Adaptor 接口 | relay/types/adaptor.go | 9 方法定义完整 |
-| OpenAI 适配器 | relay/openai/ | 透传 + Responses API 转换 |
-| Anthropic 适配器 | relay/anthropic/ | 格式转换 + SSE 流式转换 |
-| Gemini 适配器 | relay/gemini/ | 格式转换 + SSE 流式转换 |
+| 组件 | 迁移路径 | 说明 |
+|------|----------|------|
+| Adaptor 接口 | types/ → provider/types.go | 扩展为含中间格式的新接口 |
+| 凭证提取 | types/credentials.go → provider/credentials.go | 逻辑不变 |
+| OpenAI 适配器 | openai/ → provider/openai/ | 透传 + Responses API 转换 + ToInternal/FromInternal |
+| Anthropic 适配器 | anthropic/ → provider/anthropic/ | 格式转换 + SSE 流式 + ToInternal/FromInternal |
+| Gemini 适配器 | gemini/ → provider/gemini/ | 格式转换 + SSE 流式 + ToInternal/FromInternal |
 | 加权轮询号池 | relay/pool.go | 平滑加权轮询算法 |
 | 亲和缓存 | relay/affinity.go | Token+Model → Channel 绑定 |
 | 预消费计费 | relay/billing.go | PreConsume/Settle/Refund |
@@ -488,7 +497,10 @@ nginx (80/443)
   ├── / → Next.js 静态文件 (/var/www/cli-relay/web/out)
   ├── /api/v1/* → Go API Server (127.0.0.1:8080)
   ├── /api/admin/* → Go API Server (127.0.0.1:8080)
-  └── /v1/* → Go API Server (127.0.0.1:8080)
+  ├── /v1/chat/completions → Go API Server (127.0.0.1:8080)
+  ├── /v1/responses → Go API Server (127.0.0.1:8080)
+  ├── /v1/messages → Go API Server (127.0.0.1:8080)
+  └── /v1beta/* → Go API Server (127.0.0.1:8080)
 
 Go Server (单进程，fasthttp)
 PostgreSQL (本地或远程)

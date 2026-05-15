@@ -1,14 +1,18 @@
 # CLI Relay v3 — 后端核心重构实施计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+>
+> **执行方式：** 使用 Subagent-Driven Development。每个 Task 派一个独立 subagent 执行，主 agent 在 Task 间做 review。新会话启动时，读取本文件和 spec 即可接续工作，无需额外上下文。
 
 **Goal:** 将现有 cli-relay 后端从单体结构重构为分层架构，新增用户系统、路由器、中间件链、中间格式转换，同时保留核心中转引擎的性能。
 
-**Architecture:** 保留 fasthttp 内核，将手动 switch 路由替换为轻量路由器，实现中间件管道，admin handler 按资源拆分，新增 user 包处理用户注册/登录/管理。引入统一中间格式 `InternalRequest`/`InternalResponse` 用于 4 种 API 格式互转。中转路径 `/v1/*` 保持最短中间件链确保极致性能。
+**Architecture:** 保留 fasthttp 内核，将手动 switch 路由替换为轻量路由器，实现中间件管道，admin handler 按资源拆分，新增 user 包处理用户注册/登录/管理。引入统一中间格式 `InternalRequest`/`InternalResponse` 用于 4 种 API 格式互转。中转路径保持最短中间件链确保极致性能。
 
 **Tech Stack:** Go 1.26, fasthttp, GORM/PostgreSQL, JWT (HS256), AES-256-GCM
 
 **Spec:** `docs/superpowers/specs/2026-05-15-cli-relay-v3-platform-design.md`
+
+**当前进度：** 未开始。所有 Task 均为 pending。
 
 ---
 
