@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type Service struct {
@@ -77,7 +78,7 @@ func (s *Service) Register(req *RegisterRequest) (*LoginResponse, error) {
 
 func (s *Service) Login(req *LoginRequest) (*LoginResponse, error) {
 	var user db.User
-	if err := s.db.Where("email = ?", req.Email).First(&user).Error; err != nil {
+	if err := s.db.Where("email = ? AND deleted_at IS NULL AND status = 'active'", req.Email).First(&user).Error; err != nil {
 		return nil, errors.New("invalid email or password")
 	}
 
@@ -102,8 +103,8 @@ func (s *Service) RefreshToken(tokenStr string) (*LoginResponse, error) {
 
 	// Verify user still exists and is active
 	var user db.User
-	if err := s.db.Where("id = ?", userID).First(&user).Error; err != nil {
-		return nil, errors.New("user not found")
+	if err := s.db.Where("id = ? AND deleted_at IS NULL AND status = 'active'", userID).First(&user).Error; err != nil {
+		return nil, errors.New("user not found or inactive")
 	}
 
 	token, err := s.generateUserToken(userID, username)
@@ -169,7 +170,7 @@ func (s *Service) UpdateEmail(userID string, req *UpdateEmailRequest) error {
 
 func (s *Service) ListKeys(userID string) ([]KeyResponse, error) {
 	var tokens []db.Token
-	if err := s.db.Where("user_id = ?", userID).Find(&tokens).Error; err != nil {
+	if err := s.db.Where("user_id = ? AND deleted_at IS NULL", userID).Find(&tokens).Error; err != nil {
 		return nil, err
 	}
 
@@ -325,19 +326,22 @@ func (s *Service) Subscribe(userID, planID string) error {
 
 func (s *Service) RedeemCode(userID, code string) (int64, error) {
 	var redeemCode db.RedeemCode
-	if err := s.db.Where("code = ? AND status = ? AND expires_at > ?", code, "active", time.Now()).First(&redeemCode).Error; err != nil {
-		return 0, errors.New("invalid or expired code")
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("code = ? AND status = ? AND expires_at > ?", code, "active", time.Now()).
+			First(&redeemCode).Error; err != nil {
+			return errors.New("invalid or expired code")
+		}
+		now := time.Now()
+		redeemCode.UsedBy = &userID
+		redeemCode.UsedAt = &now
+		redeemCode.Status = "used"
+		return tx.Save(&redeemCode).Error
+	})
+	if err != nil {
+		return 0, err
 	}
-
-	now := time.Now()
-	redeemCode.UsedBy = &userID
-	redeemCode.UsedAt = &now
-	redeemCode.Status = "used"
-	s.db.Save(&redeemCode)
-
-	// Add value to user balance
 	s.db.Model(&db.User{}).Where("id = ?", userID).Update("balance", gorm.Expr("balance + ?", redeemCode.Value))
-
 	return redeemCode.Value, nil
 }
 

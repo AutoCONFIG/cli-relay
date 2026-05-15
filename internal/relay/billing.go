@@ -2,6 +2,7 @@ package relay
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -85,30 +86,31 @@ func (b *BillingService) checkTokenLimit(tp *db.TokenPlan, plan *db.Plan) error 
 
 // PreConsume increments count usage or pre-deducts token quota.
 func (b *BillingService) PreConsume(tokenID string, model string, estimatedTokens int) error {
-	var tp db.TokenPlan
-	if err := b.db.Clauses(clause.Locking{Strength: "UPDATE"}).
-		Where("token_id = ?", tokenID).First(&tp).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+	return b.db.Transaction(func(tx *gorm.DB) error {
+		var tp db.TokenPlan
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("token_id = ?", tokenID).
+			Order("created_at DESC").First(&tp).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil // no plan = unlimited
+			}
+			return err
+		}
+		var plan db.Plan
+		if err := tx.First(&plan, "id = ? AND enabled = true", tp.PlanID).Error; err != nil {
 			return nil
 		}
-		return err
-	}
-
-	var plan db.Plan
-	if err := b.db.First(&plan, "id = ?", tp.PlanID).Error; err != nil {
-		return err
-	}
-
-	switch plan.Type {
-	case "count_based":
-		return b.incrementCountUsage(&tp, &plan)
-	case "token_based":
-		return b.preConsumeTokens(&tp, estimatedTokens)
-	}
-	return nil
+		switch plan.Type {
+		case "count_based":
+			return b.incrementCountUsageTx(tx, &tp, &plan)
+		case "token_based":
+			return b.preConsumeTokensTx(tx, &tp, estimatedTokens)
+		}
+		return nil
+	})
 }
 
-func (b *BillingService) incrementCountUsage(tp *db.TokenPlan, plan *db.Plan) error {
+func (b *BillingService) incrementCountUsageTx(tx *gorm.DB, tp *db.TokenPlan, plan *db.Plan) error {
 	usage := parseMap(tp.WindowUsage)
 	resets := parseMap(tp.WindowResetAt)
 	limits := parseMap(plan.Limits)
@@ -139,14 +141,14 @@ func (b *BillingService) incrementCountUsage(tp *db.TokenPlan, plan *db.Plan) er
 
 	usageJSON, _ := json.Marshal(usage)
 	resetsJSON, _ := json.Marshal(resets)
-	return b.db.Model(tp).Updates(map[string]interface{}{
+	return tx.Model(tp).Updates(map[string]interface{}{
 		"window_usage":    string(usageJSON),
 		"window_reset_at": string(resetsJSON),
 	}).Error
 }
 
-func (b *BillingService) preConsumeTokens(tp *db.TokenPlan, amount int) error {
-	return b.db.Model(tp).Update("used_quota", gorm.Expr("used_quota + ?", amount)).Error
+func (b *BillingService) preConsumeTokensTx(tx *gorm.DB, tp *db.TokenPlan, amount int) error {
+	return tx.Model(tp).Update("used_quota", gorm.Expr("used_quota + ?", amount)).Error
 }
 
 // Settle adjusts token usage after actual response.
@@ -229,9 +231,9 @@ func (b *BillingService) decrementCountUsage(tp *db.TokenPlan, plan *db.Plan, am
 // CheckUserBalance verifies the user has a positive balance. Returns error if insufficient.
 func (b *BillingService) CheckUserBalance(userID string) error {
 	var user db.User
-	if err := b.db.Where("id = ? AND status = 'active'", userID).First(&user).Error; err != nil {
+	if err := b.db.Where("id = ? AND status = 'active' AND deleted_at IS NULL", userID).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil // user not found — skip balance check
+			return fmt.Errorf("user not found or inactive")
 		}
 		return err
 	}
