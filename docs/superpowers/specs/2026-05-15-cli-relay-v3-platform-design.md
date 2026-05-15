@@ -255,7 +255,7 @@ ANY    /v1beta/*                      # Gemini 格式转发
 /v1beta/*        Gemini             → Gemini(透传) / OpenAI / Anthropic
 ```
 
-格式转换矩阵：
+格式转换矩阵（直接转换，无中间格式）：
 
 ```
               → OpenAI      → Anthropic    → Gemini
@@ -264,14 +264,12 @@ Anthropic     需新增          透传            需新增
 Gemini        需新增          需新增           透传
 ```
 
-当前已有 OpenAI→Anthropic 和 OpenAI→Gemini 的转换。需新增：
-- Anthropic→OpenAI（反向转换）
-- Gemini→OpenAI（反向转换）
-- Anthropic→Gemini 和 Gemini→Anthropic（通过 OpenAI 作为中间格式串联，避免 9 个转换器）
+共 6 个转换器（3种格式 × 2方向，排除透传），当前已有 2 个，需新增 4 个：
+- Anthropic→OpenAI（请求/响应/流式反向转换）
+- Gemini→OpenAI（请求/响应/流式反向转换）
+- OpenAI→Anthropic 和 OpenAI→Gemini 已实现，反向转换逻辑对称
 
-实现策略：当客户端格式 ≠ 上游格式时，先将请求转为 OpenAI 格式（统一中间格式），再从 OpenAI 转为上游格式。这样只需维护 6 个转换器（每种格式 ↔ OpenAI），而非 9 个两两转换器。
-
-Token 统一计量：无论客户端用哪种格式，usage 都归一化为 `prompt_tokens + completion_tokens` 进行计费。
+直接转换优势：无二次序列化开销，流式场景无精度损失，代码直观。
 
 ## 5. 数据模型
 
