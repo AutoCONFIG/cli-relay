@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
@@ -175,25 +174,4 @@ func makeRemovePool(pools *relay.PoolManager) func(channelID string) {
 	return func(channelID string) {
 		pools.RemovePool(channelID)
 	}
-}
-
-func jsonResponse(ctx *fasthttp.RequestCtx, status int, data interface{}) {
-	ctx.SetContentType("application/json")
-	ctx.SetStatusCode(status)
-	body, _ := json.Marshal(map[string]interface{}{
-		"code":    0,
-		"data":    data,
-		"message": "ok",
-	})
-	ctx.SetBody(body)
-}
-
-func jsonError(ctx *fasthttp.RequestCtx, status int, msg string) {
-	ctx.SetContentType("application/json")
-	ctx.SetStatusCode(status)
-	body, _ := json.Marshal(map[string]interface{}{
-		"code":    status,
-		"message": msg,
-	})
-	ctx.SetBody(body)
 }

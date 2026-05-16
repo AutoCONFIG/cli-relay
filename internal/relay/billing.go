@@ -170,6 +170,12 @@ func (b *BillingService) RefundAndSettle(tokenID string, estTokens int, promptTo
 
 		var plan db.Plan
 		if err := tx.First(&plan, "id = ? AND deleted_at IS NULL", tp.PlanID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				// Plan deleted mid-request — best-effort refund of estimate
+				tx.Model(&tp).Where("token_id = ?", tokenID).
+					Update("used_quota", gorm.Expr("GREATEST(0, used_quota - ?)", estTokens))
+				return nil
+			}
 			return err
 		}
 
@@ -252,8 +258,8 @@ func (b *BillingService) decrementCountUsageTx(tx *gorm.DB, tp *db.TokenPlan, pl
 }
 
 // CheckUserBalance verifies the user has a positive balance. Returns error if insufficient.
-// Users with active plans skip the balance check since plans have their own quota enforcement.
-func (b *BillingService) CheckUserBalance(userID string) error {
+// Users with an active plan on the specific token being used skip the balance check since plans have their own quota enforcement.
+func (b *BillingService) CheckUserBalance(userID string, tokenID string) error {
 	var user db.User
 	if err := b.db.Where("id = ? AND status = 'active' AND deleted_at IS NULL", userID).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -262,11 +268,11 @@ func (b *BillingService) CheckUserBalance(userID string) error {
 		return err
 	}
 
-	// If the user has tokens with active plans, skip balance check — plan quotas are enforced separately
+	// If the specific token has an active plan, skip balance check — plan quotas are enforced separately
 	var planCount int64
 	b.db.Model(&db.TokenPlan{}).
-		Joins("JOIN tokens ON tokens.id = token_plans.token_id AND tokens.user_id = ? AND tokens.deleted_at IS NULL", userID).
 		Joins("JOIN plans ON plans.id = token_plans.plan_id AND plans.enabled = true AND plans.deleted_at IS NULL").
+		Where("token_plans.token_id = ?", tokenID).
 		Count(&planCount)
 	if planCount > 0 {
 		return nil

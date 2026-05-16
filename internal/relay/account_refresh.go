@@ -3,15 +3,19 @@ package relay
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"time"
 
 	"github.com/AutoCONFIG/cli-relay/internal/crypto"
 	"github.com/AutoCONFIG/cli-relay/internal/db"
+	"golang.org/x/sync/singleflight"
 	"gorm.io/gorm"
-	"log"
 )
+
+// refreshGroup deduplicates concurrent OAuth refresh calls for the same account.
+var refreshGroup singleflight.Group
 
 // EnsureValidCredentials checks if account credentials are valid, refreshes OAuth tokens if needed.
 // Returns the decrypted credential string ready for API use.
@@ -22,7 +26,14 @@ func EnsureValidCredentials(account *db.Account, database *gorm.DB) (string, err
 
 	// OAuth token — check expiry
 	if account.TokenExpiry != nil && time.Now().After(*account.TokenExpiry) {
-		return refreshOAuthToken(account, database)
+		accountID := account.ID.String()
+		v, err, _ := refreshGroup.Do(accountID, func() (interface{}, error) {
+			return refreshOAuthToken(account, database)
+		})
+		if err != nil {
+			return "", err
+		}
+		return v.(string), nil
 	}
 
 	return crypto.Decrypt(account.Credentials)
@@ -61,6 +72,7 @@ func refreshOAuthToken(account *db.Account, database *gorm.DB) (string, error) {
 
 	// Async update database — fire and forget
 	go func() {
+		newExpiry := time.Now().Add(time.Duration(result.ExpiresIn) * time.Second)
 		newCreds, encErr := crypto.Encrypt(result.AccessToken)
 		if encErr != nil {
 			log.Printf("failed to encrypt refreshed credentials for account %s: %v", account.ID, encErr)
@@ -68,7 +80,7 @@ func refreshOAuthToken(account *db.Account, database *gorm.DB) (string, error) {
 		}
 		updates := map[string]interface{}{
 			"credentials":  newCreds,
-			"token_expiry": time.Now().Add(time.Duration(result.ExpiresIn) * time.Second),
+			"token_expiry": newExpiry,
 		}
 		if result.RefreshToken != "" {
 			newRefresh, encErr := crypto.Encrypt(result.RefreshToken)
@@ -78,7 +90,10 @@ func refreshOAuthToken(account *db.Account, database *gorm.DB) (string, error) {
 		}
 		if err := database.Model(&db.Account{}).Where("id = ?", account.ID).Updates(updates).Error; err != nil {
 			log.Printf("failed to update refreshed credentials for account %s: %v", account.ID, err)
+			return
 		}
+		// Update in-memory expiry so we don't re-trigger refresh on every request
+		account.TokenExpiry = &newExpiry
 	}()
 
 	return result.AccessToken, nil

@@ -121,18 +121,6 @@ func (a *GeminiAdaptor) ParseStreamUsage(lastChunk []byte) (int, int, error) {
 	return 0, 0, nil
 }
 
-// --- Response conversion helpers ---
-
-// ConvertGeminiResponseToOpenAI converts a non-streaming Gemini response to OpenAI Chat format.
-func ConvertGeminiResponseToOpenAI(respBody []byte, model string) []byte {
-	return convertGeminiResponse(respBody, model)
-}
-
-// ConvertGeminiSSEBuffer converts a full buffered Gemini SSE body to OpenAI SSE format.
-func ConvertGeminiSSEBuffer(sseBody []byte) []byte {
-	return convertGeminiSSEBuffer(sseBody)
-}
-
 func init() {
 	provider.RegisterToInternal(provider.FormatGemini, geminiToInternal)
 	provider.RegisterFromInternal(provider.FormatGemini, internalToGemini)

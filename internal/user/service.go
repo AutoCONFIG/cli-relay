@@ -162,6 +162,11 @@ func (s *Service) UpdatePassword(userID string, req *UpdatePasswordRequest) erro
 }
 
 func (s *Service) UpdateEmail(userID string, req *UpdateEmailRequest) error {
+	// Validate email format
+	if _, err := mail.ParseAddress(req.Email); err != nil {
+		return errors.New("invalid email format")
+	}
+
 	var user db.User
 	if err := s.db.Where("id = ? AND deleted_at IS NULL AND status = 'active'", userID).First(&user).Error; err != nil {
 		return errors.New("user not found")

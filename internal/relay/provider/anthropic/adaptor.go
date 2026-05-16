@@ -109,18 +109,6 @@ func (a *AnthropicAdaptor) ParseStreamUsage(lastChunk []byte) (int, int, error) 
 	return 0, 0, nil
 }
 
-// --- Response conversion helpers ---
-
-// ConvertAnthropicResponseToOpenAI converts a non-streaming Anthropic response to OpenAI Chat format.
-func ConvertAnthropicResponseToOpenAI(respBody []byte) []byte {
-	return convertAnthropicResponse(respBody)
-}
-
-// ConvertAnthropicSSEBuffer converts a full buffered Anthropic SSE body to OpenAI SSE format.
-func ConvertAnthropicSSEBuffer(sseBody []byte) []byte {
-	return convertAnthropicSSEBuffer(sseBody)
-}
-
 func init() {
 	provider.RegisterToInternal(provider.FormatAnthropic, anthropicToInternal)
 	provider.RegisterFromInternal(provider.FormatAnthropic, internalToAnthropic)

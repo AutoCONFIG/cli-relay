@@ -125,7 +125,7 @@ func (r *Relayer) HandleRelay(ctx *fasthttp.RequestCtx) {
 		}
 		// Check user balance if token is linked to a user
 		if token.UserID != "" {
-			if err := r.billing.CheckUserBalance(token.UserID); err != nil {
+			if err := r.billing.CheckUserBalance(token.UserID, token.ID.String()); err != nil {
 				ctx.Error(`{"error":"`+jsonEscape(err.Error())+`"}`, 402)
 				return
 			}
@@ -281,6 +281,7 @@ func (r *Relayer) handleStreaming(ctx *fasthttp.RequestCtx, token db.Token, ch *
 		defer func() {
 			if rec := recover(); rec != nil {
 				log.Printf("stream goroutine panic: %v", rec)
+				go r.billing.Refund(token.ID.String(), estTokens)
 			}
 		}()
 		defer fasthttp.ReleaseRequest(upReq)
@@ -420,7 +421,7 @@ func (r *Relayer) handleBuffered(ctx *fasthttp.RequestCtx, token db.Token, ch *d
 			return
 		}
 
-		err := fasthttp.Do(upReq, upResp)
+		err := streamingClient.Do(upReq, upResp)
 		fasthttp.ReleaseRequest(upReq)
 
 		shouldRetry := false
