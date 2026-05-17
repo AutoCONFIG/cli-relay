@@ -96,19 +96,25 @@ type UpdateAccountRequest struct {
 
 // CreateTokenRequest is the request DTO for creating a token.
 type CreateTokenRequest struct {
-	Name        string `json:"name"`
-	Key         string `json:"key"`
-	Enabled     bool   `json:"enabled"`
-	IPWhitelist string `json:"ip_whitelist"`
-	Unlimited   bool   `json:"unlimited"`
+	Name        string     `json:"name"`
+	Key         string     `json:"key"`
+	Enabled     bool       `json:"enabled"`
+	IPWhitelist string     `json:"ip_whitelist"`
+	ExpiresAt   *time.Time `json:"expires_at"`
+	Models      string     `json:"models"`
+	Permissions string     `json:"permissions"`
+	Unlimited   bool       `json:"unlimited"`
 }
 
 // UpdateTokenRequest is the request DTO for updating a token.
 type UpdateTokenRequest struct {
-	Name        *string `json:"name,omitempty"`
-	Key         *string `json:"key,omitempty"`
-	IPWhitelist *string `json:"ip_whitelist,omitempty"`
-	Unlimited   *bool   `json:"unlimited,omitempty"`
+	Name        *string    `json:"name,omitempty"`
+	Key         *string    `json:"key,omitempty"`
+	IPWhitelist *string    `json:"ip_whitelist,omitempty"`
+	ExpiresAt   *time.Time `json:"expires_at,omitempty"`
+	Models      *string    `json:"models,omitempty"`
+	Permissions *string    `json:"permissions,omitempty"`
+	Unlimited   *bool      `json:"unlimited,omitempty"`
 }
 
 // --- Plan DTOs ---

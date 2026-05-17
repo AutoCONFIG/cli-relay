@@ -213,6 +213,11 @@ ANY    /v1beta/*               # Gemini generateContent
   OAuth session into an `oauth_token` account.
 - `internal/db/account.go`: OAuth accounts can store an encrypted `client_secret`
   for providers that require it during refresh.
+- `internal/db/token.go`: User API keys support `ip_whitelist`, `expires_at`,
+  `models`, and `permissions`; relay rejects expired keys, disallowed models, and
+  disallowed endpoint scopes.
+- `internal/user/service.go`: `CreateKeyRequest` accepts advanced key fields and
+  returns them from key listing/creation responses.
 - `internal/admin/user_handler.go`: Admins can reset user password via `new_password`
   (min 8 chars, bcrypt hashed).
 - `internal/relay/account_refresh.go`: OpenAI OAuth refresh can re-run the Codex
@@ -230,6 +235,8 @@ ANY    /v1beta/*               # Gemini generateContent
 - `web/components/admin-channel-console.tsx`: The channel modal calls the OAuth
   backend endpoints to open provider authorization, poll callback status, and bind
   completed sessions into channel credentials.
+- `web/app/keys/page.tsx`: User key creation includes IP whitelist, expiry, model
+  restriction, and scoped endpoint permissions.
 - `web/lib/api.ts`: Admin channel OAuth helpers are available as
   `adminApi.startChannelOAuth`, `adminApi.channelOAuthStatus`, and
   `adminApi.bindChannelOAuth`.
@@ -238,8 +245,6 @@ ANY    /v1beta/*               # Gemini generateContent
 
 Do not pretend these are done:
 
-- **User API key advanced fields**: Creation accepts only `name`. IP whitelist,
-  expiry, model restrictions, and scoped permissions need backend fields.
 - **Usage endpoint types**: Usage endpoints return generic maps, which limits
   strongly typed charts.
 

@@ -31,7 +31,11 @@ type UpdateEmailRequest struct {
 }
 
 type CreateKeyRequest struct {
-	Name string `json:"name"`
+	Name        string  `json:"name"`
+	IPWhitelist string  `json:"ip_whitelist"`
+	ExpiresAt   *string `json:"expires_at"`
+	Models      string  `json:"models"`
+	Permissions string  `json:"permissions"`
 }
 
 type ProfileResponse struct {
@@ -44,11 +48,15 @@ type ProfileResponse struct {
 }
 
 type KeyResponse struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Key       string `json:"key"`
-	Enabled   bool   `json:"enabled"`
-	CreatedAt string `json:"created_at"`
+	ID          string  `json:"id"`
+	Name        string  `json:"name"`
+	Key         string  `json:"key"`
+	Enabled     bool    `json:"enabled"`
+	IPWhitelist string  `json:"ip_whitelist"`
+	ExpiresAt   *string `json:"expires_at,omitempty"`
+	Models      string  `json:"models"`
+	Permissions string  `json:"permissions"`
+	CreatedAt   string  `json:"created_at"`
 }
 
 type SubscriptionResponse struct {

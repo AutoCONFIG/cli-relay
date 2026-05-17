@@ -58,11 +58,13 @@ OpenAI/Codex or Gemini. The backend returns a provider authorization URL, the UI
 polls callback status by `state`, and a completed session is bound as an
 `oauth_token` account inside the channel.
 
+The `/keys` page creates user API keys with optional `ip_whitelist`, `expires_at`,
+`models`, and `permissions`. Permissions map to relay entry points: `chat`,
+`responses`, `messages`, and `gemini`.
+
 ## Known Backend Gaps
 
 These are intentional frontend placeholders until backend endpoints exist:
 
-- User API key scopes. User key creation currently accepts only `name`; IP whitelist,
-  expiry, model restrictions, and scoped permissions need backend fields.
 - Typed usage payloads. Usage endpoints currently return generic maps, which limits
   chart safety.

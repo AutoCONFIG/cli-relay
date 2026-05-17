@@ -201,19 +201,31 @@ func (s *Service) ListKeys(userID string) ([]KeyResponse, error) {
 	keys := make([]KeyResponse, len(tokens))
 	for i, t := range tokens {
 		keys[i] = KeyResponse{
-			ID:        t.ID.String(),
-			Name:      t.Name,
-			Key:       t.Key,
-			Enabled:   t.Enabled,
-			CreatedAt: t.CreatedAt.Format(time.RFC3339),
+			ID:          t.ID.String(),
+			Name:        t.Name,
+			Key:         t.Key,
+			Enabled:     t.Enabled,
+			IPWhitelist: t.IPWhitelist,
+			ExpiresAt:   formatOptionalTime(t.ExpiresAt),
+			Models:      t.Models,
+			Permissions: t.Permissions,
+			CreatedAt:   t.CreatedAt.Format(time.RFC3339),
 		}
 	}
 	return keys, nil
 }
 
 func (s *Service) CreateKey(userID string, req *CreateKeyRequest) (*KeyResponse, error) {
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		return nil, errors.New("name is required")
+	}
+	expiresAt, err := parseOptionalTime(req.ExpiresAt)
+	if err != nil {
+		return nil, err
+	}
 	var token db.Token
-	err := s.db.Transaction(func(tx *gorm.DB) error {
+	err = s.db.Transaction(func(tx *gorm.DB) error {
 		var keyCount int64
 		tx.Model(&db.Token{}).Where("user_id = ? AND deleted_at IS NULL", userID).Count(&keyCount)
 		if keyCount >= int64(s.maxKeysPerUser) {
@@ -222,10 +234,14 @@ func (s *Service) CreateKey(userID string, req *CreateKeyRequest) (*KeyResponse,
 		keyUUID := uuid.New().String()
 		key := "sk-relay-" + strings.ReplaceAll(keyUUID, "-", "")
 		token = db.Token{
-			UserID:  userID,
-			Name:    req.Name,
-			Key:     key,
-			Enabled: true,
+			UserID:      userID,
+			Name:        name,
+			Key:         key,
+			Enabled:     true,
+			IPWhitelist: normalizeCSV(req.IPWhitelist),
+			ExpiresAt:   expiresAt,
+			Models:      normalizeCSV(req.Models),
+			Permissions: normalizeCSV(req.Permissions),
 		}
 		return tx.Create(&token).Error
 	})
@@ -233,11 +249,15 @@ func (s *Service) CreateKey(userID string, req *CreateKeyRequest) (*KeyResponse,
 		return nil, err
 	}
 	return &KeyResponse{
-		ID:        token.ID.String(),
-		Name:      token.Name,
-		Key:       token.Key,
-		Enabled:   token.Enabled,
-		CreatedAt: token.CreatedAt.Format(time.RFC3339),
+		ID:          token.ID.String(),
+		Name:        token.Name,
+		Key:         token.Key,
+		Enabled:     token.Enabled,
+		IPWhitelist: token.IPWhitelist,
+		ExpiresAt:   formatOptionalTime(token.ExpiresAt),
+		Models:      token.Models,
+		Permissions: token.Permissions,
+		CreatedAt:   token.CreatedAt.Format(time.RFC3339),
 	}, nil
 }
 
@@ -249,6 +269,46 @@ func (s *Service) DeleteKey(userID, keyID string) error {
 	}
 
 	return s.db.Model(&token).Update("deleted_at", time.Now()).Error
+}
+
+func parseOptionalTime(value *string) (*time.Time, error) {
+	if value == nil || strings.TrimSpace(*value) == "" {
+		return nil, nil
+	}
+	parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(*value))
+	if err != nil {
+		return nil, errors.New("expires_at must be RFC3339")
+	}
+	if !parsed.After(time.Now()) {
+		return nil, errors.New("expires_at must be in the future")
+	}
+	return &parsed, nil
+}
+
+func formatOptionalTime(value *time.Time) *string {
+	if value == nil {
+		return nil
+	}
+	formatted := value.Format(time.RFC3339)
+	return &formatted
+}
+
+func normalizeCSV(value string) string {
+	parts := strings.Split(value, ",")
+	out := make([]string, 0, len(parts))
+	seen := map[string]struct{}{}
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		out = append(out, trimmed)
+	}
+	return strings.Join(out, ",")
 }
 
 func (s *Service) GetUsage(userID string) (map[string]interface{}, error) {

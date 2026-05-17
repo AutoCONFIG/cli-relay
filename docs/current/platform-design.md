@@ -271,12 +271,15 @@ type Account struct {
 ```go
 type Token struct {
     Base
-    UserID      string `gorm:"size:36;index"`           // 关联 User
-    Name        string `gorm:"size:100;not null"`
-    Key         string `gorm:"size:100;uniqueIndex;not null"`
-    Enabled     bool   `gorm:"default:true"`
-    IPWhitelist string `gorm:"type:text"`
-    Unlimited   bool   `gorm:"default:false"`
+    UserID      string     `gorm:"size:36;index"`           // 关联 User
+    Name        string     `gorm:"size:100;not null"`
+    Key         string     `gorm:"size:100;uniqueIndex;not null"`
+    Enabled     bool       `gorm:"default:true"`
+    IPWhitelist string     `gorm:"type:text"`
+    ExpiresAt   *time.Time
+    Models      string     `gorm:"type:text"`
+    Permissions string     `gorm:"type:text"`
+    Unlimited   bool       `gorm:"default:false"`
 }
 ```
 

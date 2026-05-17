@@ -33,6 +33,10 @@ export type ApiKey = {
   name: string;
   key: string;
   enabled: boolean;
+  ip_whitelist: string;
+  expires_at?: string;
+  models: string;
+  permissions: string;
   created_at: string;
 };
 

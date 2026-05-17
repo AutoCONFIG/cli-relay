@@ -51,7 +51,13 @@ export const userApi = {
   updateEmail: (token: string, body: { password: string; email: string }) =>
     request<void>("/api/user/email", { method: "POST", token, body }),
   keys: (token: string) => request<ApiKey[]>("/api/user/keys", { token }),
-  createKey: (token: string, name: string) => request<ApiKey>("/api/user/keys", { method: "POST", token, body: { name } }),
+  createKey: (token: string, body: {
+    name: string;
+    ip_whitelist?: string;
+    expires_at?: string;
+    models?: string;
+    permissions?: string;
+  }) => request<ApiKey>("/api/user/keys", { method: "POST", token, body }),
   deleteKey: (token: string, keyID: string) => request<void>(`/api/user/keys/${keyID}`, { method: "DELETE", token }),
   usage: (token: string) => request<Record<string, unknown>>("/api/user/usage", { token }),
   usageLogs: (token: string, page = 1, limit = 20) =>
