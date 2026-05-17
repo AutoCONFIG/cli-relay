@@ -73,6 +73,9 @@ func (p *AccountPool) Cooldown(accountID string, duration time.Duration) {
 	defer p.mu.Unlock()
 	for i := range p.accounts {
 		if p.accounts[i].Account.ID.String() == accountID {
+			if p.accounts[i].Weight == 0 {
+				return // already cooled down, skip
+			}
 			p.totalWeight -= p.accounts[i].Weight
 			p.accounts[i].Weight = 0
 			p.accounts[i].CurrentWeight = 0
