@@ -100,8 +100,9 @@ type UpdatePlanRequest struct {
 
 // UpdateUserRequest is the request DTO for updating a user.
 type UpdateUserRequest struct {
-	Status  *string `json:"status,omitempty"`
-	Balance *int64  `json:"balance,omitempty"`
+	Status      *string `json:"status,omitempty"`
+	Balance     *int64  `json:"balance,omitempty"`
+	NewPassword *string `json:"new_password,omitempty"`
 }
 
 // --- Dashboard DTO ---

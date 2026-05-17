@@ -144,6 +144,10 @@ func (s *Service) GetProfile(userID string) (*ProfileResponse, error) {
 }
 
 func (s *Service) UpdatePassword(userID string, req *UpdatePasswordRequest) error {
+	if len(req.NewPassword) < 8 {
+		return errors.New("new password must be at least 8 characters")
+	}
+
 	var user db.User
 	if err := s.db.Where("id = ? AND deleted_at IS NULL AND status = 'active'", userID).First(&user).Error; err != nil {
 		return errors.New("user not found")
@@ -244,8 +248,7 @@ func (s *Service) DeleteKey(userID, keyID string) error {
 		return errors.New("key not found")
 	}
 
-	// Soft delete
-	return s.db.Delete(&token).Error
+	return s.db.Model(&token).Update("deleted_at", time.Now()).Error
 }
 
 func (s *Service) GetUsage(userID string) (map[string]interface{}, error) {

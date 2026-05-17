@@ -91,7 +91,7 @@ export const adminApi = {
     if (status) query.set("status", status);
     return request<PaginatedResponse<User>>(`/api/admin/users?${query.toString()}`, { token });
   },
-  updateUser: (token: string, id: string, body: Partial<Pick<User, "status" | "balance">>) =>
+  updateUser: (token: string, id: string, body: Partial<Pick<User, "status" | "balance">> & { new_password?: string }) =>
     request<User>(`/api/admin/users?id=${id}`, { method: "PUT", token, body }),
   deleteUser: (token: string, id: string) =>
     request<{ deleted: boolean }>(`/api/admin/users?id=${id}`, { method: "DELETE", token }),

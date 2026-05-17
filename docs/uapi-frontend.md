@@ -47,8 +47,6 @@ a compatibility page only.
 
 These are intentional frontend placeholders until backend endpoints exist:
 
-- Admin random user password reset. The backend currently supports status/balance
-  update and delete, but not password reset.
 - OAuth onboarding from the channel page. The backend needs endpoints for auth URL
   creation, callback status, and account binding.
 - User API key scopes. User key creation currently accepts only `name`; IP whitelist,

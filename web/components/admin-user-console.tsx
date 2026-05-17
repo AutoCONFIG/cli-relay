@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Ban, KeyRound, Search, Trash2, Undo2 } from "lucide-react";
 import { StatusBadge } from "@/components/shell";
+import { adminApi } from "@/lib/api";
+import type { User } from "@/types/api";
 
 type UserRow = {
   id: string;
@@ -25,24 +27,76 @@ function generatePassword() {
 export function AdminUserConsole({ initialUsers }: { initialUsers: UserRow[] }) {
   const [users, setUsers] = useState(initialUsers);
   const [passwordResult, setPasswordResult] = useState<{ email: string; password: string } | null>(null);
+  const [error, setError] = useState("");
 
-  function toggleBan(email: string) {
+  useEffect(() => {
+    const token = window.localStorage.getItem("uapi.admin.token");
+    if (!token) return;
+
+    adminApi.users(token)
+      .then((response) => setUsers(response.items.map(fromApiUser)))
+      .catch(() => {
+        // Keep static preview data when the Go API is not available.
+      });
+  }, []);
+
+  async function toggleBan(row: UserRow) {
+    const nextStatus = row.status === "disabled" ? "active" : "disabled";
+    const token = window.localStorage.getItem("uapi.admin.token");
+    setError("");
+
+    if (token && isUUID(row.id)) {
+      try {
+        const updated = await adminApi.updateUser(token, row.id, { status: nextStatus as User["status"] });
+        setUsers((current) => current.map((user) => (user.id === row.id ? fromApiUser(updated) : user)));
+        return;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "更新用户失败");
+        return;
+      }
+    }
+
     setUsers((current) =>
       current.map((user) =>
-        user.email === email ? { ...user, status: user.status === "disabled" ? "active" : "disabled" } : user,
+        user.id === row.id ? { ...user, status: nextStatus } : user,
       ),
     );
   }
 
-  function deleteUser(email: string) {
-    setUsers((current) => current.filter((user) => user.email !== email));
-    if (passwordResult?.email === email) {
+  async function deleteUser(row: UserRow) {
+    const token = window.localStorage.getItem("uapi.admin.token");
+    setError("");
+
+    if (token && isUUID(row.id)) {
+      try {
+        await adminApi.deleteUser(token, row.id);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "删除用户失败");
+        return;
+      }
+    }
+
+    setUsers((current) => current.filter((user) => user.id !== row.id));
+    if (passwordResult?.email === row.email) {
       setPasswordResult(null);
     }
   }
 
-  function resetPassword(email: string) {
-    setPasswordResult({ email, password: generatePassword() });
+  async function resetPassword(row: UserRow) {
+    const token = window.localStorage.getItem("uapi.admin.token");
+    const password = generatePassword();
+    setError("");
+
+    if (token && isUUID(row.id)) {
+      try {
+        await adminApi.updateUser(token, row.id, { new_password: password });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "重置密码失败");
+        return;
+      }
+    }
+
+    setPasswordResult({ email: row.email, password });
   }
 
   return (
@@ -66,6 +120,7 @@ export function AdminUserConsole({ initialUsers }: { initialUsers: UserRow[] }) 
           <code>{passwordResult.password}</code>
         </section>
       ) : null}
+      {error ? <p className="form-error" style={{ marginTop: 16 }}>{error}</p> : null}
 
       <section className="card" style={{ marginTop: 16 }}>
         <div className="table-wrap">
@@ -92,13 +147,13 @@ export function AdminUserConsole({ initialUsers }: { initialUsers: UserRow[] }) 
                     <td>{row.joined}</td>
                     <td>
                       <div className="row-actions">
-                        <button className="btn" onClick={() => toggleBan(row.email)} title={disabled ? "解封" : "封禁"} type="button">
+                        <button className="btn" onClick={() => toggleBan(row)} title={disabled ? "解封" : "封禁"} type="button">
                           {disabled ? <Undo2 /> : <Ban />}
                         </button>
-                        <button className="btn" onClick={() => resetPassword(row.email)} title="随机重置密码" type="button">
+                        <button className="btn" onClick={() => resetPassword(row)} title="随机重置密码" type="button">
                           <KeyRound />
                         </button>
-                        <button className="btn danger" onClick={() => deleteUser(row.email)} title="删除用户" type="button">
+                        <button className="btn danger" onClick={() => deleteUser(row)} title="删除用户" type="button">
                           <Trash2 />
                         </button>
                       </div>
@@ -112,4 +167,25 @@ export function AdminUserConsole({ initialUsers }: { initialUsers: UserRow[] }) 
       </section>
     </>
   );
+}
+
+function fromApiUser(user: User): UserRow {
+  return {
+    id: user.id,
+    email: user.email,
+    status: user.status,
+    balance: formatBalance(user.balance),
+    keys: 0,
+    joined: user.created_at ? new Date(user.created_at).toISOString().slice(0, 10) : "-",
+  };
+}
+
+function formatBalance(value: number) {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+  return String(value);
+}
+
+function isUUID(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
