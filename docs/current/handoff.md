@@ -182,6 +182,10 @@ GET    /api/admin/init-status
 POST   /api/admin/setup
 GET    /api/admin/dashboard
 CRUD   /api/admin/channels
+POST   /api/admin/channels/oauth/auth-url
+GET    /api/admin/channels/oauth/callback
+GET    /api/admin/channels/oauth/status
+POST   /api/admin/channels/oauth/bind
 CRUD   /api/admin/accounts
 CRUD   /api/admin/tokens
 CRUD   /api/admin/plans
@@ -204,8 +208,15 @@ ANY    /v1beta/*               # Gemini generateContent
 ## Backend Changes on This Branch
 
 - `internal/admin/dto.go`: `UpdateUserRequest` supports `new_password`.
+- `internal/admin/oauth_handler.go`: Admin channel OAuth onboarding supports auth
+  URL creation, provider callback exchange, session status, and binding a completed
+  OAuth session into an `oauth_token` account.
+- `internal/db/account.go`: OAuth accounts can store an encrypted `client_secret`
+  for providers that require it during refresh.
 - `internal/admin/user_handler.go`: Admins can reset user password via `new_password`
   (min 8 chars, bcrypt hashed).
+- `internal/relay/account_refresh.go`: OpenAI OAuth refresh can re-run the Codex
+  token-exchange flow when an `id_token` is returned.
 - `internal/user/service.go`: Password change validates length; API key deletion
   uses `deleted_at` soft-delete instead of GORM hard delete.
 
@@ -216,13 +227,17 @@ ANY    /v1beta/*               # Gemini generateContent
   success/error states.
 - `web/lib/api.ts`: User settings API helpers are available as
   `userApi.updatePassword` and `userApi.updateEmail`.
+- `web/components/admin-channel-console.tsx`: The channel modal calls the OAuth
+  backend endpoints to open provider authorization, poll callback status, and bind
+  completed sessions into channel credentials.
+- `web/lib/api.ts`: Admin channel OAuth helpers are available as
+  `adminApi.startChannelOAuth`, `adminApi.channelOAuthStatus`, and
+  `adminApi.bindChannelOAuth`.
 
 ## Known Remaining Gaps
 
 Do not pretend these are done:
 
-- **OAuth onboarding**: UI-ready on `/admin/channels`, but backend endpoints are
-  missing for auth URL creation, callback status, and account binding.
 - **User API key advanced fields**: Creation accepts only `name`. IP whitelist,
   expiry, model restrictions, and scoped permissions need backend fields.
 - **Usage endpoint types**: Usage endpoints return generic maps, which limits

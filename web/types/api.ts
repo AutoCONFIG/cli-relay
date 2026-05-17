@@ -72,6 +72,25 @@ export type Account = {
   updated_at?: string;
 };
 
+export type OAuthAuthURL = {
+  auth_url: string;
+  state: string;
+  redirect_uri: string;
+  expires_at: string;
+};
+
+export type OAuthStatus = {
+  state: string;
+  provider: "openai" | "gemini";
+  channel_id: string;
+  status: "pending" | "completed" | "error" | "bound";
+  ready_to_bind: boolean;
+  error?: string;
+  created_at: string;
+  completed_at?: string;
+  bound_account_id?: string;
+};
+
 export type Dashboard = {
   total_requests: number;
   total_tokens: number;

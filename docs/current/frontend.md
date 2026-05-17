@@ -35,6 +35,10 @@ The frontend calls the implemented backend routes:
 - Admin CRUD: `/api/admin/channels`, `/api/admin/accounts`, `/api/admin/users`,
   `/api/admin/tokens`, `/api/admin/plans`, `/api/admin/logs`,
   `/api/admin/audit-logs`
+- Admin channel OAuth: `POST /api/admin/channels/oauth/auth-url`,
+  `GET /api/admin/channels/oauth/status`, and
+  `POST /api/admin/channels/oauth/bind`. Provider callbacks return to
+  `GET /api/admin/channels/oauth/callback`.
 
 The unified login form tries user login first, then admin login. In static preview mode,
 it keeps local fallback accounts so the UI remains navigable without the Go API server:
@@ -49,12 +53,15 @@ API keys, and OAuth credentials are represented as credentials within a channel 
 than as a separate primary navigation item. The old `/admin/accounts` route remains as
 a compatibility page only.
 
+The `/admin/channels` modal can create a channel and start OAuth onboarding for
+OpenAI/Codex or Gemini. The backend returns a provider authorization URL, the UI
+polls callback status by `state`, and a completed session is bound as an
+`oauth_token` account inside the channel.
+
 ## Known Backend Gaps
 
 These are intentional frontend placeholders until backend endpoints exist:
 
-- OAuth onboarding from the channel page. The backend needs endpoints for auth URL
-  creation, callback status, and account binding.
 - User API key scopes. User key creation currently accepts only `name`; IP whitelist,
   expiry, model restrictions, and scoped permissions need backend fields.
 - Typed usage payloads. Usage endpoints currently return generic maps, which limits

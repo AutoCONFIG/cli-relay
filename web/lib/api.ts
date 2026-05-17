@@ -5,6 +5,8 @@ import type {
   Channel,
   Dashboard,
   LoginResponse,
+  OAuthAuthURL,
+  OAuthStatus,
   PaginatedResponse,
   Plan,
   Profile,
@@ -82,6 +84,18 @@ export const adminApi = {
     request<Channel>(`/api/admin/channels?id=${id}`, { method: "PUT", token, body }),
   deleteChannel: (token: string, id: string) =>
     request<{ deleted: boolean }>(`/api/admin/channels?id=${id}`, { method: "DELETE", token }),
+  startChannelOAuth: (token: string, body: {
+    channel_id: string;
+    provider?: string;
+    account_name?: string;
+    client_id?: string;
+    client_secret?: string;
+    token_url?: string;
+  }) => request<OAuthAuthURL>("/api/admin/channels/oauth/auth-url", { method: "POST", token, body }),
+  channelOAuthStatus: (token: string, state: string) =>
+    request<OAuthStatus>(`/api/admin/channels/oauth/status?state=${encodeURIComponent(state)}`, { token }),
+  bindChannelOAuth: (token: string, body: { state: string; account_name?: string; weight?: number; enabled?: boolean }) =>
+    request<Account>("/api/admin/channels/oauth/bind", { method: "POST", token, body }),
   accounts: (token: string, page = 1, limit = 20) =>
     request<PaginatedResponse<Account>>(`/api/admin/accounts?page=${page}&limit=${limit}`, { token }),
   createAccount: (token: string, body: { channel_id: string; name: string; credentials: string; weight: number; enabled: boolean }) =>

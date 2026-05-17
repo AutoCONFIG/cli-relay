@@ -168,6 +168,10 @@ POST   /api/admin/setup              # 首次初始化
 
 GET    /api/admin/dashboard           # 仪表盘统计
 CRUD   /api/admin/channels            # 渠道管理
+POST   /api/admin/channels/oauth/auth-url  # 创建 OAuth 授权 URL（admin JWT）
+GET    /api/admin/channels/oauth/callback  # Provider callback（公开回调，state 校验）
+GET    /api/admin/channels/oauth/status    # 查询 OAuth session 状态（admin JWT）
+POST   /api/admin/channels/oauth/bind      # 绑定完成的 session 为 oauth_token account
 CRUD   /api/admin/accounts            # 兼容接口；前端已归一到渠道
 CRUD   /api/admin/tokens              # 令牌管理
 CRUD   /api/admin/plans               # 套餐管理
@@ -257,6 +261,7 @@ type Account struct {
     RefreshToken  string     `gorm:"type:text"`                 // AES encrypted (for oauth_token)
     TokenExpiry   *time.Time                                    // access_token expiry
     ClientID      string     `gorm:"type:text"`                 // OAuth client ID
+    ClientSecret  string     `gorm:"type:text"`                 // AES encrypted OAuth client secret
     TokenURL      string     `gorm:"type:text"`                 // OAuth token endpoint
 }
 ```
@@ -294,6 +299,13 @@ type RedeemCode struct {
 ## 6. OAuth 凭证自动刷新
 
 参考 upstream 中 Codex CLI 和 Gemini CLI 的 OAuth 实现，relay 支持用 OAuth token 而非静态 API Key 作为上游凭证。
+
+管理端 OAuth onboarding 已在 `internal/admin/oauth_handler.go` 实现：
+
+1. `POST /api/admin/channels/oauth/auth-url` 创建短期内存 session、PKCE verifier/challenge 和 provider 授权 URL。
+2. `GET /api/admin/channels/oauth/callback` 校验 `state`，交换 authorization code，并把结果保留在 session 中。
+3. `GET /api/admin/channels/oauth/status` 供前端轮询 callback 状态。
+4. `POST /api/admin/channels/oauth/bind` 由已登录管理员把完成的 session 保存为 `accounts.cred_type = oauth_token`。
 
 ### Codex (OpenAI) OAuth 流程
 
