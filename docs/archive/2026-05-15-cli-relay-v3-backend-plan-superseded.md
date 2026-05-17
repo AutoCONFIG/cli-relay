@@ -1,3 +1,7 @@
+> ARCHIVED / SUPERSEDED. Do not use this document for current implementation
+> decisions. Start with `docs/current/handoff.md` and the active docs under
+> `docs/current/`.
+
 # CLI Relay v3 — 后端核心重构实施计划
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

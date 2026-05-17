@@ -1,3 +1,7 @@
+> ARCHIVED / SUPERSEDED. Do not use this document for current implementation
+> decisions. Start with `docs/current/handoff.md` and the active docs under
+> `docs/current/`.
+
 # cli-relay 设计文档
 
 ## 项目目标

@@ -8,8 +8,7 @@ working state so the next agent can continue without extra user briefing.
 - Public name: **UAPI**
 - Meaning: Unified API / Your API
 - Positioning: Your Unified AI API Gateway
-- Old visible names such as `CLI Relay`, `CR`, and `API Console` should not appear
-  in the UI.
+- Legacy names from archived documents should not appear in the UI.
 
 ## Repository State
 
@@ -25,6 +24,17 @@ Recent branch commits:
 - `d59d3d3 feat: add UAPI frontend console`
 - `8b99933 feat: align frontend with UAPI backend`
 - `8293a23 fix: complete admin user management flow`
+- `b7ab91c docs: add UAPI handoff notes`
+- `docs: reorganize UAPI documentation` (this commit)
+
+## Documentation Layout
+
+- `docs/README.md` is the documentation index.
+- `docs/current/` is the source of truth for active implementation work.
+- `docs/deployment/` contains deployment and operations notes.
+- `docs/reference/` contains background reference material only.
+- `docs/archive/` contains superseded historical documents and should not guide
+  current implementation decisions.
 
 ## Frontend
 
@@ -145,7 +155,7 @@ Before handing back work, run:
 & 'C:\Program Files\Go\bin\go.exe' test ./...
 npm --prefix web run build
 npm --prefix web audit --audit-level=high
-rg "TODO|FIXME|debugger|cli-relay-web|CLI Relay|API Console|>CR<" web internal docs\uapi-frontend.md -g "!node_modules" -g "!.next" -g "!out"
+rg "TODO|FIXME|debugger|cli-relay-web|CLI[ ]Relay|API[ ]Console|>CR<" web internal -g "!node_modules" -g "!.next" -g "!out"
 git diff --check
 ```
 
