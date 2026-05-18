@@ -1,14 +1,12 @@
 package gemini
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strings"
 
-	"github.com/AutoCONFIG/cli-relay/internal/db"
-	"github.com/AutoCONFIG/cli-relay/internal/relay/provider"
+	"github.com/AutoCONFIG/uapi/internal/db"
+	"github.com/AutoCONFIG/uapi/internal/relay/provider"
 	"github.com/valyala/fasthttp"
 )
 
@@ -162,21 +160,3 @@ func mapGeminiFinishReason(reason string) string {
 	}
 }
 
-func toInt(v interface{}) int {
-	switch n := v.(type) {
-	case float64:
-		return int(n)
-	case int:
-		return n
-	default:
-		return 0
-	}
-}
-
-func randomHex(n int) string {
-	b := make([]byte, n)
-	if _, err := rand.Read(b); err != nil {
-		panic(fmt.Sprintf("crypto/rand.Read failed: %v", err))
-	}
-	return hex.EncodeToString(b)
-}

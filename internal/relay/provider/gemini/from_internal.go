@@ -3,7 +3,7 @@ package gemini
 import (
 	"encoding/json"
 
-	"github.com/AutoCONFIG/cli-relay/internal/relay/provider"
+	"github.com/AutoCONFIG/uapi/internal/relay/provider"
 )
 
 // internalToGemini converts InternalRequest to Gemini API JSON.

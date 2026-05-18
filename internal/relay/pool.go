@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/AutoCONFIG/cli-relay/internal/db"
+	"github.com/AutoCONFIG/uapi/internal/db"
 )
 
 type WeightedAccount struct {
@@ -81,11 +81,18 @@ func (p *AccountPool) Cooldown(accountID string, duration time.Duration) {
 			p.accounts[i].CurrentWeight = 0
 			until := time.Now().Add(duration)
 			p.accounts[i].Account.CooldownUntil = &until
+			cooldownID := p.accounts[i].Account.ID.String()
+			cooldownWeight := p.accounts[i].OriginalWeight
 			time.AfterFunc(duration, func() {
 				p.mu.Lock()
 				defer p.mu.Unlock()
-				p.accounts[i].Weight = p.accounts[i].OriginalWeight
-				p.totalWeight += p.accounts[i].OriginalWeight
+				for j := range p.accounts {
+					if p.accounts[j].Account.ID.String() == cooldownID {
+						p.accounts[j].Weight = cooldownWeight
+						p.totalWeight += cooldownWeight
+						break
+					}
+				}
 			})
 			return
 		}

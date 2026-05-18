@@ -1,4 +1,4 @@
-module github.com/AutoCONFIG/cli-relay
+module github.com/AutoCONFIG/uapi
 
 go 1.26.2
 

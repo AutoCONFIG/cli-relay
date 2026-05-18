@@ -3,7 +3,7 @@ package gemini
 import (
 	"testing"
 
-	"github.com/AutoCONFIG/cli-relay/internal/db"
+	"github.com/AutoCONFIG/uapi/internal/db"
 	"github.com/valyala/fasthttp"
 )
 

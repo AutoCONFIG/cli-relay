@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"strconv"
 
-	"github.com/AutoCONFIG/cli-relay/internal/auth"
+	"github.com/AutoCONFIG/uapi/internal/auth"
 	"github.com/valyala/fasthttp"
 )
 

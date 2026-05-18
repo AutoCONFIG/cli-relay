@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/AutoCONFIG/cli-relay/internal/auth"
-	"github.com/AutoCONFIG/cli-relay/internal/db"
+	"github.com/AutoCONFIG/uapi/internal/auth"
+	"github.com/AutoCONFIG/uapi/internal/db"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -33,9 +33,16 @@ func (s *Service) Register(req *RegisterRequest) (*LoginResponse, error) {
 		return nil, errors.New("invalid email format")
 	}
 
+	// Validate username
+	trimmed := strings.TrimSpace(req.Username)
+	if trimmed == "" || len(trimmed) > 100 {
+		return nil, errors.New("username must be 1-100 characters")
+	}
+	req.Username = trimmed
+
 	// Validate password length
-	if len(req.Password) < 6 {
-		return nil, errors.New("password must be at least 6 characters")
+	if len(req.Password) < 8 {
+		return nil, errors.New("password must be at least 8 characters")
 	}
 
 	// Hash password (do this outside the transaction since it's CPU-bound)
@@ -92,6 +99,8 @@ func (s *Service) Register(req *RegisterRequest) (*LoginResponse, error) {
 func (s *Service) Login(req *LoginRequest) (*LoginResponse, error) {
 	var user db.User
 	if err := s.db.Where("email = ? AND deleted_at IS NULL AND status = 'active'", req.Email).First(&user).Error; err != nil {
+		// Dummy bcrypt to prevent timing-based email enumeration
+		bcrypt.CompareHashAndPassword([]byte("$2a$10$000000000000000000000uGYAyOEPv8VQ8H1Vw8BrSbxWJvOXqWK"), []byte(req.Password))
 		return nil, errors.New("invalid email or password")
 	}
 
@@ -203,7 +212,7 @@ func (s *Service) ListKeys(userID string) ([]KeyResponse, error) {
 		keys[i] = KeyResponse{
 			ID:          t.ID.String(),
 			Name:        t.Name,
-			Key:         t.Key,
+			Key:         maskKey(t.Key),
 			Enabled:     t.Enabled,
 			IPWhitelist: t.IPWhitelist,
 			ExpiresAt:   formatOptionalTime(t.ExpiresAt),
@@ -456,17 +465,24 @@ func (s *Service) Subscribe(userID, planID string) error {
 			return errors.New("already subscribed to a plan")
 		}
 
-		// Find a token to attach subscription to (use the first one)
-		var token db.Token
-		if err := tx.Where("user_id = ? AND deleted_at IS NULL", userID).First(&token).Error; err != nil {
+		// Attach subscription to ALL active tokens for this user
+		var tokens []db.Token
+		if err := tx.Where("user_id = ? AND deleted_at IS NULL", userID).Find(&tokens).Error; err != nil {
+			return errors.New("failed to find API keys")
+		}
+		if len(tokens) == 0 {
 			return errors.New("no API key found")
 		}
-
-		tokenPlan := db.TokenPlan{
-			TokenID: token.ID,
-			PlanID:  plan.ID,
+		for _, t := range tokens {
+			tokenPlan := db.TokenPlan{
+				TokenID: t.ID,
+				PlanID:  plan.ID,
+			}
+			if err := tx.Create(&tokenPlan).Error; err != nil {
+				return err
+			}
 		}
-		return tx.Create(&tokenPlan).Error
+		return nil
 	})
 	return err
 }
@@ -519,4 +535,12 @@ func (s *Service) parseTokenAllowExpired(tokenStr string) (string, string, error
 		return "", "", err
 	}
 	return claims.UserID, claims.Username, nil
+}
+
+// maskKey returns a masked version of the API key showing only prefix and last 4 chars.
+func maskKey(key string) string {
+	if len(key) <= 8 {
+		return key
+	}
+	return key[:8] + "****" + key[len(key)-4:]
 }

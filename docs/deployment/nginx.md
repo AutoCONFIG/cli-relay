@@ -89,7 +89,7 @@ After=network.target
 Type=simple
 User=uapi
 WorkingDirectory=/opt/uapi
-ExecStart=/opt/uapi/bin/cli-relay -config /opt/uapi/config.yaml
+ExecStart=/opt/uapi/bin/uapi -config /opt/uapi/config.yaml
 Restart=on-failure
 RestartSec=5
 

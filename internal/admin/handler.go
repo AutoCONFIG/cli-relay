@@ -1,14 +1,15 @@
 package admin
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"strconv"
 	"sync"
 	"time"
 
-	"github.com/AutoCONFIG/cli-relay/internal/auth"
-	"github.com/AutoCONFIG/cli-relay/internal/config"
-	"github.com/AutoCONFIG/cli-relay/internal/db"
+	"github.com/AutoCONFIG/uapi/internal/auth"
+	"github.com/AutoCONFIG/uapi/internal/config"
+	"github.com/AutoCONFIG/uapi/internal/db"
 	"github.com/valyala/fasthttp"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -88,7 +89,7 @@ func (h *Handler) HandleLogin(ctx *fasthttp.RequestCtx) {
 
 	// Always run bcrypt comparison to avoid timing leaks
 	matchedPassword := false
-	if req.Username == h.cfg.Security.AdminUsername {
+	if subtle.ConstantTimeCompare([]byte(req.Username), []byte(h.cfg.Security.AdminUsername)) == 1 {
 		if h.cfg.Security.AdminPasswordHash == "" {
 			h.jsonError(ctx, fasthttp.StatusForbidden, "admin password not configured")
 			return
@@ -187,8 +188,8 @@ func (h *Handler) HandleSetup(ctx *fasthttp.RequestCtx) {
 		h.jsonError(ctx, fasthttp.StatusBadRequest, "username and password are required")
 		return
 	}
-	if len(req.Password) < 6 {
-		h.jsonError(ctx, fasthttp.StatusBadRequest, "password must be at least 6 characters")
+	if len(req.Password) < 8 {
+		h.jsonError(ctx, fasthttp.StatusBadRequest, "password must be at least 8 characters")
 		return
 	}
 

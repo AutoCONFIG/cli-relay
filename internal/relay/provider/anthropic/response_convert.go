@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/AutoCONFIG/cli-relay/internal/relay/provider"
+	"github.com/AutoCONFIG/uapi/internal/relay/provider"
 )
 
 // anthropicResponseToInternal parses an Anthropic Messages API response into InternalResponse.

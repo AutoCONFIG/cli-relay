@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/AutoCONFIG/cli-relay/internal/crypto"
-	"github.com/AutoCONFIG/cli-relay/internal/db"
+	"github.com/AutoCONFIG/uapi/internal/crypto"
+	"github.com/AutoCONFIG/uapi/internal/db"
 	"github.com/google/uuid"
 	"github.com/valyala/fasthttp"
 )

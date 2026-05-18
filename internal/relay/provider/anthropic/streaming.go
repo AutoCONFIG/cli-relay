@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/AutoCONFIG/uapi/internal/relay/provider"
 )
 
 // anthropicStreamState tracks per-stream conversion state.
@@ -46,7 +48,7 @@ func (s *anthropicStreamState) convertLine(line []byte) []byte {
 				s.model = m
 			}
 			if usage, ok := msg["usage"].(map[string]interface{}); ok {
-				s.inputTokens = toInt(usage["input_tokens"])
+				s.inputTokens = provider.ToInt(usage["input_tokens"])
 			}
 		}
 		if s.roleID == "" {
@@ -123,7 +125,7 @@ func (s *anthropicStreamState) convertLine(line []byte) []byte {
 		if u, ok := event["usage"].(map[string]interface{}); ok {
 			usage = map[string]interface{}{
 				"prompt_tokens":     s.inputTokens,
-				"completion_tokens": toInt(u["output_tokens"]),
+				"completion_tokens": provider.ToInt(u["output_tokens"]),
 			}
 		}
 		chunk := map[string]interface{}{
@@ -204,7 +206,7 @@ type anthropicReverseState struct {
 
 func newAnthropicReverseState() *anthropicReverseState {
 	return &anthropicReverseState{
-		msgID: fmt.Sprintf("msg_%s", randomAnthropicHex(24)),
+		msgID: fmt.Sprintf("msg_%s", provider.RandomHex(24)),
 	}
 }
 
@@ -278,7 +280,7 @@ func (s *anthropicReverseState) convertReverseLine(line []byte) []byte {
 					}
 					id, _ := tc["id"].(string)
 					if id == "" {
-						id = fmt.Sprintf("toolu_%s", randomAnthropicHex(24))
+						id = fmt.Sprintf("toolu_%s", provider.RandomHex(24))
 					}
 					result = append(result, s.buildToolUseBlockStart(s.blockIdx, id, name)...)
 				}
@@ -439,14 +441,4 @@ func mapFinishReasonFromOpenAI(reason string) string {
 	default:
 		return "end_turn"
 	}
-}
-
-// randomAnthropicHex generates a random hex string for IDs.
-func randomAnthropicHex(n int) string {
-	b := make([]byte, n)
-	// Use crypto/rand for uniqueness
-	if _, err := cryptoRandRead(b); err != nil {
-		panic(fmt.Sprintf("crypto/rand.Read failed: %v", err))
-	}
-	return hexEncodeToString(b)
 }

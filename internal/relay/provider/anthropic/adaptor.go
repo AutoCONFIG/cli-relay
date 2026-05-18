@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/AutoCONFIG/cli-relay/internal/db"
-	"github.com/AutoCONFIG/cli-relay/internal/relay/provider"
+	"github.com/AutoCONFIG/uapi/internal/db"
+	"github.com/AutoCONFIG/uapi/internal/relay/provider"
 	"github.com/valyala/fasthttp"
 )
 
@@ -128,18 +128,6 @@ func init() {
 
 // Verify interface compliance at compile time.
 var _ provider.Adaptor = (*AnthropicAdaptor)(nil)
-
-// toInt converts an interface{} (float64, int, etc.) to int.
-func toInt(v interface{}) int {
-	switch n := v.(type) {
-	case float64:
-		return int(n)
-	case int:
-		return n
-	default:
-		return 0
-	}
-}
 
 // mapFinishReason maps Anthropic stop_reason to OpenAI finish_reason (used by streaming).
 func mapFinishReason(reason string) string {

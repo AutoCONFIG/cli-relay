@@ -3,7 +3,7 @@ package relay
 import (
 	"testing"
 
-	"github.com/AutoCONFIG/cli-relay/internal/relay/provider"
+	"github.com/AutoCONFIG/uapi/internal/relay/provider"
 	"github.com/valyala/fasthttp"
 )
 

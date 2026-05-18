@@ -3,6 +3,8 @@ package gemini
 import (
 	"encoding/json"
 	"strings"
+
+	"github.com/AutoCONFIG/uapi/internal/relay/provider"
 )
 
 // geminiStreamState tracks per-stream conversion state.
@@ -60,8 +62,8 @@ func (s *geminiStreamState) convertChunk(chunk map[string]interface{}, model str
 	candidates, _ := chunk["candidates"].([]interface{})
 	if len(candidates) == 0 {
 		if um, ok := chunk["usageMetadata"].(map[string]interface{}); ok {
-			pt := toInt(um["promptTokenCount"])
-			ct := toInt(um["candidatesTokenCount"])
+			pt := provider.ToInt(um["promptTokenCount"])
+			ct := provider.ToInt(um["candidatesTokenCount"])
 			return buildGeminiChunkWithUsage(s.roleID, s.model, map[string]interface{}{}, "", pt, ct)
 		}
 		return nil
@@ -103,7 +105,7 @@ func (s *geminiStreamState) convertChunk(chunk map[string]interface{}, model str
 			}
 			toolCalls = append(toolCalls, map[string]interface{}{
 				"index": len(toolCalls),
-				"id":    "call_" + randomHex(12),
+				"id":    "call_" + provider.RandomHex(12),
 				"type":  "function",
 				"function": map[string]interface{}{
 					"name":      name,
@@ -128,8 +130,8 @@ func (s *geminiStreamState) convertChunk(chunk map[string]interface{}, model str
 	// Add usage from last chunk
 	if finishReason != "" {
 		if um, ok := chunk["usageMetadata"].(map[string]interface{}); ok {
-			pt := toInt(um["promptTokenCount"])
-			ct := toInt(um["candidatesTokenCount"])
+			pt := provider.ToInt(um["promptTokenCount"])
+			ct := provider.ToInt(um["candidatesTokenCount"])
 			result = append(result, buildGeminiChunkWithUsage(s.roleID, s.model,
 				map[string]interface{}{}, finishReason, pt, ct)...)
 		}

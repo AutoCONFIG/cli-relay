@@ -9,12 +9,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/AutoCONFIG/cli-relay/internal/crypto"
-	"github.com/AutoCONFIG/cli-relay/internal/db"
-	"github.com/AutoCONFIG/cli-relay/internal/relay/provider/openai"
+	"github.com/AutoCONFIG/uapi/internal/crypto"
+	"github.com/AutoCONFIG/uapi/internal/db"
+	"github.com/AutoCONFIG/uapi/internal/relay/provider/openai"
 	"golang.org/x/sync/singleflight"
 	"gorm.io/gorm"
 )
+
+// oauthHTTPClient is a shared client for OAuth token operations.
+var oauthHTTPClient = &http.Client{Timeout: 15 * time.Second}
 
 // refreshGroup deduplicates concurrent OAuth refresh calls for the same account.
 var refreshGroup singleflight.Group
@@ -60,7 +63,7 @@ func refreshOAuthToken(account *db.Account, database *gorm.DB) (string, error) {
 		data.Set("client_secret", clientSecret)
 	}
 
-	resp, err := (&http.Client{Timeout: 15 * time.Second}).PostForm(account.TokenURL, data)
+	resp, err := oauthHTTPClient.PostForm(account.TokenURL, data)
 	if err != nil {
 		return "", fmt.Errorf("refresh request failed: %w", err)
 	}

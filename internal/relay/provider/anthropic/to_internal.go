@@ -3,8 +3,9 @@ package anthropic
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
-	"github.com/AutoCONFIG/cli-relay/internal/relay/provider"
+	"github.com/AutoCONFIG/uapi/internal/relay/provider"
 )
 
 // anthropicToInternal converts an Anthropic Messages API request body
@@ -227,12 +228,5 @@ func parseAnthropicToolChoice(tc interface{}) *provider.InternalToolChoice {
 }
 
 func joinStrings(parts []string) string {
-	result := ""
-	for i, s := range parts {
-		if i > 0 {
-			result += "\n"
-		}
-		result += s
-	}
-	return result
+	return strings.Join(parts, "\n")
 }

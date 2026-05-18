@@ -4,7 +4,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/AutoCONFIG/cli-relay/internal/db"
+	"github.com/AutoCONFIG/uapi/internal/db"
 	"gorm.io/gorm"
 )
 

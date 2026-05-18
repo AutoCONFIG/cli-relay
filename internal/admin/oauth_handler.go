@@ -5,13 +5,14 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"html"
 	"strings"
 	"time"
 
-	internalcrypto "github.com/AutoCONFIG/cli-relay/internal/crypto"
-	"github.com/AutoCONFIG/cli-relay/internal/db"
-	"github.com/AutoCONFIG/cli-relay/internal/relay/provider/gemini"
-	"github.com/AutoCONFIG/cli-relay/internal/relay/provider/openai"
+	internalcrypto "github.com/AutoCONFIG/uapi/internal/crypto"
+	"github.com/AutoCONFIG/uapi/internal/db"
+	"github.com/AutoCONFIG/uapi/internal/relay/provider/gemini"
+	"github.com/AutoCONFIG/uapi/internal/relay/provider/openai"
 	"github.com/google/uuid"
 	"github.com/valyala/fasthttp"
 )
@@ -313,7 +314,7 @@ func (h *Handler) oauthStatusDTO(session *oauthSession) OAuthStatusResponse {
 func (h *Handler) writeOAuthCallbackPage(ctx *fasthttp.RequestCtx, status int, message string) {
 	ctx.SetStatusCode(status)
 	ctx.SetContentType("text/html; charset=utf-8")
-	ctx.SetBodyString("<!doctype html><meta charset=\"utf-8\"><title>UAPI OAuth</title><body><main style=\"font-family:system-ui,sans-serif;max-width:640px;margin:64px auto;line-height:1.5\"><h1>UAPI OAuth</h1><p>" + message + "</p></main></body>")
+	ctx.SetBodyString("<!doctype html><meta charset=\"utf-8\"><title>UAPI OAuth</title><body><main style=\"font-family:system-ui,sans-serif;max-width:640px;margin:64px auto;line-height:1.5\"><h1>UAPI OAuth</h1><p>" + html.EscapeString(message) + "</p></main></body>")
 }
 
 func oauthPKCE(provider string) (verifier, challenge string, err error) {

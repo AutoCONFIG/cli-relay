@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/AutoCONFIG/cli-relay/internal/db"
+	"github.com/AutoCONFIG/uapi/internal/db"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -119,7 +119,14 @@ func (b *BillingService) incrementCountUsageTx(tx *gorm.DB, tp *db.TokenPlan, pl
 	limits := parseMap(plan.Limits)
 	now := time.Now()
 
-	for window := range limits {
+	for window, maxCount := range limits {
+		maxCountFloat, ok := toFloat(maxCount)
+		if !ok {
+			continue
+		}
+		maxCountInt := int(maxCountFloat)
+
+		// Reset window if expired
 		if resetAtStr, hasReset := resets[window]; hasReset {
 			if s, ok := resetAtStr.(string); ok {
 				if resetAt, err := time.Parse(time.RFC3339, s); err == nil && now.After(resetAt) {
@@ -130,6 +137,12 @@ func (b *BillingService) incrementCountUsageTx(tx *gorm.DB, tp *db.TokenPlan, pl
 		if _, ok := usage[window]; !ok {
 			usage[window] = float64(0)
 		}
+
+		// Re-check limit inside transaction with row lock held
+		if f, ok := toFloat(usage[window]); ok && int(f) >= maxCountInt {
+			return fmt.Errorf("rate limit exceeded for window %s", window)
+		}
+
 		if f, ok := toFloat(usage[window]); ok {
 			usage[window] = f + 1
 		} else {

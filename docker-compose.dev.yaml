@@ -1,12 +1,12 @@
 services:
   postgres:
     image: postgres:17-alpine
-    container_name: cli-relay-db
+    container_name: uapi-db
     restart: unless-stopped
     environment:
       POSTGRES_USER: relay
       POSTGRES_PASSWORD: relay_dev
-      POSTGRES_DB: cli_relay
+      POSTGRES_DB: uapi
     ports:
       - "5432:5432"
     volumes:

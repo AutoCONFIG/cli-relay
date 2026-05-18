@@ -1,7 +1,12 @@
 package provider
 
 import (
-	"github.com/AutoCONFIG/cli-relay/internal/db"
+	"crypto/rand"
+	"encoding/hex"
+	"fmt"
+	"time"
+
+	"github.com/AutoCONFIG/uapi/internal/db"
 	"github.com/valyala/fasthttp"
 )
 
@@ -81,6 +86,32 @@ type InternalChoice struct {
 type InternalUsage struct {
 	PromptTokens     int
 	CompletionTokens int
+}
+
+// ToInt converts an interface{} (float64, int, etc.) to int.
+func ToInt(v interface{}) int {
+	switch n := v.(type) {
+	case float64:
+		return int(n)
+	case int:
+		return n
+	default:
+		return 0
+	}
+}
+
+// RandomHex generates a random hex string of n bytes using crypto/rand.
+// Falls back to a timestamp-based hex if crypto/rand fails.
+func RandomHex(n int) string {
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		ts := fmt.Sprintf("%x", time.Now().UnixNano())
+		for len(ts) < n*2 {
+			ts += ts
+		}
+		return ts[:n*2]
+	}
+	return hex.EncodeToString(b)
 }
 
 type Adaptor interface {

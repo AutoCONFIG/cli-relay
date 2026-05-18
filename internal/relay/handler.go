@@ -9,11 +9,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/AutoCONFIG/cli-relay/internal/db"
-	"github.com/AutoCONFIG/cli-relay/internal/relay/provider"
-	"github.com/AutoCONFIG/cli-relay/internal/relay/provider/anthropic"
-	"github.com/AutoCONFIG/cli-relay/internal/relay/provider/gemini"
-	"github.com/AutoCONFIG/cli-relay/internal/relay/provider/openai"
+	"github.com/AutoCONFIG/uapi/internal/db"
+	"github.com/AutoCONFIG/uapi/internal/relay/provider"
+	"github.com/AutoCONFIG/uapi/internal/relay/provider/anthropic"
+	"github.com/AutoCONFIG/uapi/internal/relay/provider/gemini"
+	"github.com/AutoCONFIG/uapi/internal/relay/provider/openai"
 	"github.com/google/uuid"
 	"github.com/valyala/fasthttp"
 	"gorm.io/gorm"
@@ -26,6 +26,13 @@ var streamingClient = &fasthttp.Client{
 	WriteTimeout:       0,
 	MaxConnDuration:    0,
 	StreamResponseBody: true,
+}
+
+// bufferedClient is for non-streaming upstream requests with reasonable timeouts.
+var bufferedClient = &fasthttp.Client{
+	ReadTimeout:     120 * time.Second,
+	WriteTimeout:    30 * time.Second,
+	MaxConnDuration: 180 * time.Second,
 }
 
 // maxResponseSize limits how much data we buffer from upstream (100 MB).
@@ -239,7 +246,7 @@ func (r *Relayer) HandleRelay(ctx *fasthttp.RequestCtx) {
 		r.handleBuffered(ctx, token, targetChannel, account, adaptor, upstreamURL, convertedBody, creds, req.Model, clientFormat, upstreamFormat, start, estimatedTokens)
 	}
 
-	// 10. Record affinity (for non-streaming paths; streaming sets affinity inside goroutine on success)
+	// 10. Record affinity for non-streaming paths (handleBuffered + handleForceStream are synchronous)
 	if !req.Stream && targetChannel.AffinityTTL > 0 && ctx.Response.StatusCode() < 400 {
 		r.affinity.Set(token.ID.String(), req.Model, targetChannel.ID.String(), targetChannel.AffinityTTL)
 	}
@@ -309,7 +316,9 @@ func (r *Relayer) handleStreaming(ctx *fasthttp.RequestCtx, token db.Token, ch *
 		defer func() {
 			if rec := recover(); rec != nil {
 				log.Printf("stream goroutine panic: %v", rec)
-				go r.billing.Refund(token.ID.String(), estTokens)
+				if r.billing != nil {
+					go r.billing.Refund(token.ID.String(), estTokens)
+				}
 			}
 		}()
 		defer fasthttp.ReleaseRequest(upReq)
@@ -335,6 +344,13 @@ func (r *Relayer) handleStreaming(ctx *fasthttp.RequestCtx, token db.Token, ch *
 
 // handleForceStream: stream to upstream, buffer all, convert to non-stream for downstream.
 func (r *Relayer) handleForceStream(ctx *fasthttp.RequestCtx, token db.Token, ch *db.Channel, acc *db.Account, adaptor provider.Adaptor, url string, body []byte, creds string, model string, clientFormat, upstreamFormat provider.Format, start time.Time, estTokens int) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			log.Printf("forceStream panic: %v", rec)
+			r.refundAndError(ctx, token.ID.String(), estTokens, "internal error")
+		}
+	}()
+
 	upReq := fasthttp.AcquireRequest()
 	upResp := fasthttp.AcquireResponse()
 	defer fasthttp.ReleaseRequest(upReq)
@@ -464,7 +480,7 @@ func (r *Relayer) handleBuffered(ctx *fasthttp.RequestCtx, token db.Token, ch *d
 			return
 		}
 
-		err := streamingClient.Do(upReq, upResp)
+		err := bufferedClient.Do(upReq, upResp)
 		fasthttp.ReleaseRequest(upReq)
 
 		shouldRetry := false

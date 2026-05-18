@@ -29,13 +29,24 @@ func (ac *AffinityCache) key(tokenID, model string) string {
 }
 
 // Get returns the cached channelID for tokenID+model, or empty string on miss.
+// Lazy-deletes expired entries on access.
 func (ac *AffinityCache) Get(tokenID, model string) string {
+	k := ac.key(tokenID, model)
 	ac.mu.RLock()
-	defer ac.mu.RUnlock()
-	e, ok := ac.entries[ac.key(tokenID, model)]
-	if !ok || time.Now().After(e.expiresAt) {
+	e, ok := ac.entries[k]
+	if !ok {
+		ac.mu.RUnlock()
 		return ""
 	}
+	if time.Now().After(e.expiresAt) {
+		ac.mu.RUnlock()
+		// Lazy delete: upgrade to write lock
+		ac.mu.Lock()
+		delete(ac.entries, k)
+		ac.mu.Unlock()
+		return ""
+	}
+	ac.mu.RUnlock()
 	return e.channelID
 }
 

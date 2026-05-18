@@ -130,8 +130,8 @@ func defaultConfig() *Config {
 		},
 		Database: DatabaseConfig{
 			Port:    5432,
-			User:    "relay",
-			DBName:  "cli_relay",
+			User:    "uapi",
+			DBName:  "uapi",
 			SSLMode: "disable",
 		},
 		Logging: LoggingConfig{

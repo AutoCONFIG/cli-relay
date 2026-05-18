@@ -11,9 +11,8 @@ working state so the next agent can continue without extra user briefing.
 
 ## Repository State
 
-- Main workspace: `D:\cli-relay`
-- Go module: `github.com/AutoCONFIG/cli-relay`
-- Binary entry point: `cmd/relay/main.go` (startup log: `"cli-relay ready"`)
+- Go module: `github.com/AutoCONFIG/uapi`
+- Binary entry point: `cmd/uapi/main.go` (startup log: `"uapi ready"`)
 - Active frontend branch: `codex-frontend-dashboard`
 - Remote branch: `origin/codex-frontend-dashboard`
 - There is a pre-existing local `AGENTS.md` modification. Do not stage or revert it
@@ -251,29 +250,26 @@ No known gaps remain from the original 2026-05-17 handoff list.
 
 ## Commands
 
-```powershell
+```bash
 # Frontend
 npm --prefix web install
 npm --prefix web run build
 npm --prefix web run serve:static
 
 # Backend
-& 'C:\Program Files\Go\bin\go.exe' test ./...
-& 'C:\Program Files\Go\bin\go.exe' build ./...
+go test ./...
+go build ./...
 
 # Binary entry point
-& 'C:\Program Files\Go\bin\go.exe' run ./cmd/relay/
+go run ./cmd/uapi/
 ```
-
-The machine has Go at `C:\Program Files\Go\bin\go.exe`. The bare `go` command may
-not be visible in a fresh shell until PATH refreshes.
 
 ## Verification Standard
 
 Before handing back work, run:
 
-```powershell
-& 'C:\Program Files\Go\bin\go.exe' test ./...
+```bash
+go test ./...
 npm --prefix web run build
 npm --prefix web audit --audit-level=high
 rg "TODO|FIXME|debugger|>CR<" web internal -g "!node_modules" -g "!.next" -g "!out"

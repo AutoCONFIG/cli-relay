@@ -5,12 +5,12 @@ import (
 	"log"
 	"strings"
 
-	"github.com/AutoCONFIG/cli-relay/internal/admin"
-	"github.com/AutoCONFIG/cli-relay/internal/auth"
-	"github.com/AutoCONFIG/cli-relay/internal/config"
-	"github.com/AutoCONFIG/cli-relay/internal/db"
-	"github.com/AutoCONFIG/cli-relay/internal/relay"
-	"github.com/AutoCONFIG/cli-relay/internal/user"
+	"github.com/AutoCONFIG/uapi/internal/admin"
+	"github.com/AutoCONFIG/uapi/internal/auth"
+	"github.com/AutoCONFIG/uapi/internal/config"
+	"github.com/AutoCONFIG/uapi/internal/db"
+	"github.com/AutoCONFIG/uapi/internal/relay"
+	"github.com/AutoCONFIG/uapi/internal/user"
 	"github.com/valyala/fasthttp"
 	"gorm.io/gorm"
 )

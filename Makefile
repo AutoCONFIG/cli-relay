@@ -1,9 +1,9 @@
 .PHONY: build run clean tidy test fmt dev web
 
-BINARY=cli-relay
+BINARY=uapi
 
 build:
-	go build -o bin/$(BINARY) ./cmd/relay/
+	go build -o bin/$(BINARY) ./cmd/uapi/
 
 run: build
 	./bin/$(BINARY) -config config.yaml

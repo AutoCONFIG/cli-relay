@@ -5,13 +5,13 @@ import (
 	"log"
 	"time"
 
-	"github.com/AutoCONFIG/cli-relay/internal/admin"
-	"github.com/AutoCONFIG/cli-relay/internal/config"
-	"github.com/AutoCONFIG/cli-relay/internal/crypto"
-	"github.com/AutoCONFIG/cli-relay/internal/db"
-	"github.com/AutoCONFIG/cli-relay/internal/relay"
-	"github.com/AutoCONFIG/cli-relay/internal/server"
-	"github.com/AutoCONFIG/cli-relay/internal/user"
+	"github.com/AutoCONFIG/uapi/internal/admin"
+	"github.com/AutoCONFIG/uapi/internal/config"
+	"github.com/AutoCONFIG/uapi/internal/crypto"
+	"github.com/AutoCONFIG/uapi/internal/db"
+	"github.com/AutoCONFIG/uapi/internal/relay"
+	"github.com/AutoCONFIG/uapi/internal/server"
+	"github.com/AutoCONFIG/uapi/internal/user"
 )
 
 func main() {
@@ -57,7 +57,7 @@ func main() {
 	userSvc := user.NewService(database, cfg.Security.JWTSecret, jwtExpiry, cfg.User.MaxKeysPerUser)
 
 	srv := server.New(cfg, database, pools, billing, userSvc, *configPath)
-	log.Println("cli-relay ready")
+	log.Println("uapi ready")
 	if err := srv.Start(); err != nil {
 		log.Fatalf("server error: %v", err)
 	}

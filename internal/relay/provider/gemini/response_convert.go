@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/AutoCONFIG/cli-relay/internal/relay/provider"
+	"github.com/AutoCONFIG/uapi/internal/relay/provider"
 )
 
 // geminiResponseToInternal parses a Gemini generateContent response into InternalResponse.
@@ -15,7 +15,7 @@ func geminiResponseToInternal(body []byte) (*provider.InternalResponse, error) {
 	}
 
 	ir := &provider.InternalResponse{
-		ID:    "gemini-" + randomHex(16),
+		ID:    "gemini-" + provider.RandomHex(16),
 		Model: "", // Gemini doesn't echo model in response
 	}
 
@@ -57,7 +57,7 @@ func geminiResponseToInternal(body []byte) (*provider.InternalResponse, error) {
 						args = string(a)
 					}
 					ir.Choices[0].Message.ToolCalls = append(ir.Choices[0].Message.ToolCalls, provider.InternalToolCall{
-						ID:        "fc_" + randomHex(8),
+						ID:        "fc_" + provider.RandomHex(8),
 						Name:      name,
 						Arguments: args,
 					})
@@ -69,8 +69,8 @@ func geminiResponseToInternal(body []byte) (*provider.InternalResponse, error) {
 	// Usage metadata
 	if um, ok := resp["usageMetadata"].(map[string]interface{}); ok {
 		ir.Usage = provider.InternalUsage{
-			PromptTokens:     toInt(um["promptTokenCount"]),
-			CompletionTokens: toInt(um["candidatesTokenCount"]),
+			PromptTokens:     provider.ToInt(um["promptTokenCount"]),
+			CompletionTokens: provider.ToInt(um["candidatesTokenCount"]),
 		}
 	}
 

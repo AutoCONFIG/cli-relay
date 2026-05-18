@@ -9,7 +9,11 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"time"
 )
+
+// httpClient is shared across OAuth operations with a reasonable timeout.
+var httpClient = &http.Client{Timeout: 30 * time.Second}
 
 const (
 	DefaultAuthURL  = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -69,7 +73,7 @@ func ExchangeCode(tokenURL, code, redirectURI, codeVerifier, clientID, clientSec
 	if clientSecret != "" {
 		data.Set("client_secret", clientSecret)
 	}
-	resp, err := http.PostForm(tokenURL, data)
+	resp, err := httpClient.PostForm(tokenURL, data)
 	if err != nil {
 		return nil, fmt.Errorf("exchange request failed: %w", err)
 	}
@@ -82,28 +86,8 @@ func ExchangeCode(tokenURL, code, redirectURI, codeVerifier, clientID, clientSec
 	if err := json.Unmarshal(body, &tokenResp); err != nil {
 		return nil, fmt.Errorf("parse response: %w", err)
 	}
-	return &tokenResp, nil
-}
-
-// RefreshToken refreshes an access token
-func RefreshToken(tokenURL, refreshToken, clientID string) (*TokenResponse, error) {
-	data := url.Values{
-		"grant_type":    {"refresh_token"},
-		"refresh_token": {refreshToken},
-		"client_id":     {clientID},
-	}
-	resp, err := http.PostForm(tokenURL, data)
-	if err != nil {
-		return nil, fmt.Errorf("refresh request failed: %w", err)
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read response: %w", err)
-	}
-	var tokenResp TokenResponse
-	if err := json.Unmarshal(body, &tokenResp); err != nil {
-		return nil, fmt.Errorf("parse response: %w", err)
+	if tokenResp.AccessToken == "" {
+		return nil, fmt.Errorf("no access token in response")
 	}
 	return &tokenResp, nil
 }

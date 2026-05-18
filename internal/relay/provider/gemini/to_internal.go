@@ -3,8 +3,9 @@ package gemini
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
-	"github.com/AutoCONFIG/cli-relay/internal/relay/provider"
+	"github.com/AutoCONFIG/uapi/internal/relay/provider"
 )
 
 // geminiToInternal converts a Gemini API request body
@@ -148,7 +149,7 @@ func parseGeminiContent(content map[string]interface{}) provider.InternalMessage
 				args = string(a)
 			}
 			im.ToolCalls = append(im.ToolCalls, provider.InternalToolCall{
-				ID:        "call_" + randomHex(12),
+				ID:        "call_" + provider.RandomHex(12),
 				Name:      name,
 				Arguments: args,
 			})
@@ -211,12 +212,5 @@ func parseGeminiToolConfig(tc map[string]interface{}) *provider.InternalToolChoi
 }
 
 func joinStrings(parts []string) string {
-	result := ""
-	for i, s := range parts {
-		if i > 0 {
-			result += "\n"
-		}
-		result += s
-	}
-	return result
+	return strings.Join(parts, "\n")
 }
